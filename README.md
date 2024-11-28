@@ -21,7 +21,7 @@
 
 ## Description
 
-The `Documentation` folder contains a set of files that explain the features found in the dataset. These documents provide detailed information about the data structure and the meaning of various fields in the dataset. The `Documentation` files were obtained from the <a href='https://github.com/statsbomb/statsbombpy'>statsbombpy GitHub repository</a>, specifically from the `docs` directory.
+The <a href='/Documentation/'>`Documentation`</a> folder contains a set of files that explain the features found in the dataset. These documents provide detailed information about the data structure and the meaning of various fields in the dataset. The <a href='/Documentation/'>`Documentation`</a> files were obtained from the <a href='https://github.com/statsbomb/statsbombpy'>statsbombpy GitHub repository</a>, specifically from the <a href='https://github.com/statsbomb/statsbombpy/tree/master/doc'>`docs`</a> directory.
 
 - The <a href='SB_Data.ipynb'>`SB_Data.ipynb`</a> file contains the code to read the data from the StatsBomb dataset.
 - The <a href='read_data.ipynb'>`read_data.ipynb`</a> file contains code to read the data from a local Hadoop server into Spark through PySpark.
