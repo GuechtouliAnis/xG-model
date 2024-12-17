@@ -1,0 +1,85 @@
+---Kept Features---
+id
+index
+type
+    - Block
+    - Offside
+    - Shot
+    - Pressure
+play_pattern
+position
+location
+under_pressure
+related_events
+Block
+    - save_block
+Goalkeeper
+    - position
+    - type
+    - body_part
+    - technique
+    - outcome
+Pass
+    - recipient
+    - length
+    - height
+    - end_location
+    - assisted_shot_id
+    - cross
+    - shot_assist
+    - goal_assist
+    - type
+    - outcome
+    - technique
+Shot
+    - key_pass_id
+    - end_location
+    - aerial_won
+    - open_goal
+    - statsbomb_xg
+    - technique
+    - first_time
+    - body_part
+    - type
+    - outcome
+++
+    - Distance to goal
+    - angle
+    - area between player and goal
+    - players in area between player and goal
+    - angle of open area between most left/right player and left/right extreme
+    - keeper position
+    - fav foot
+
+- shot_freeze_frame -
+
+---Removed Features---
+period
+timestamp
+minute
+second
+possession
+possession_team
+team
+duration
+off_camera
+tactics
+50-50
+Bad Behaviour
+Ball Receipt
+Ball Recovery
+Carry
+Clearance
+Dribble
+Dribbled Past
+Duel
+Foul Committed
+Foul Won
+Half End
+Half Start
+Injury Stoppage
+Interception
+Miscontrol
+Player Off
+Pressure
+Substitution

@@ -1,3 +1,11 @@
 myenv
 .vscode
 todo.txt
+Data
+cleaning_events.ipynb
+cleaning_frames.ipynb
+learn*
+*try*
+spark_data.ipynb
+spark-warehouse
+frames*
