@@ -1,0 +1,13 @@
+
+[16-12-2024]
+    - There are different data versions, some have more columns than others
+    - SB_Data.ipynb fixed accordingly
+    - Code was left to run on kaggle
+
+[17-12-2024]
+    - Shot Freeze Frames are not saved when shot is a penalty
+
+[19-12-2024]
+    - Finally fixed the issue with the shot freeze frames
+    - The issue was in pyspark reading the data, it was not reading the data correctly
+    - Used ; as a separator to fix that
