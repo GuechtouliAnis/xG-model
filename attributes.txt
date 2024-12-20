@@ -2,10 +2,7 @@
 id
 index
 type
-    - Block
-    - Offside
     - Shot
-    - Pressure
 play_pattern
 position
 location
@@ -50,6 +47,9 @@ Shot
     - angle of open area between most left/right player and left/right extreme
     - keeper position
     - fav foot
+    - Position (remove Left/Right)
+    - Join Shot with its pass data
+    - Separate Shot freeze frame data
 
 - shot_freeze_frame -
 

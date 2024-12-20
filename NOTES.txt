@@ -11,3 +11,5 @@
     - Finally fixed the issue with the shot freeze frames
     - The issue was in pyspark reading the data, it was not reading the data correctly
     - Used ; as a separator to fix that
+    - A direct shot from corner has an xg of 1.8E-4
+    - A penalty has an xg of 0.7835
