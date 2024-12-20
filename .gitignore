@@ -9,3 +9,4 @@ learn*
 spark_data.ipynb
 spark-warehouse
 frames*
+*.csv
