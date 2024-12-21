@@ -13,3 +13,6 @@
     - Used ; as a separator to fix that
     - A direct shot from corner has an xg of 1.8E-4
     - A penalty has an xg of 0.7835
+
+[20-12-2024]
+    - Started exporting functions to a python file
