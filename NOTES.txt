@@ -16,3 +16,12 @@
 
 [20-12-2024]
     - Started exporting functions to a python file
+
+[21-12-2024]
+    - Trying the model
+        - With location x and y : accuracy : 89.62%
+        - Without location x and y : accuracy : 89.61%
+    - Professional model of statsbomb had an accuracy of 90.72%
+    - The model is not bad, but it can be improved
+    - Next, players inside area of shot, pass type, Shot features, position multiplier
+    - Visualizations
