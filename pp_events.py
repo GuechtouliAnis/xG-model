@@ -1,3 +1,4 @@
+import re
 from pyspark.sql.functions import col, regexp_extract,round, sqrt, pow, lit,udf,when
 from pyspark.sql.types import FloatType
 import pandas as pd
@@ -137,6 +138,24 @@ def shot_frame_to_df(df):
     df = pd.DataFrame(processed_rows)
     return df
 
+
+def preprocessing(df,dff):
+    # Split location column into x and y coordinates
+    df = split_location(df)
+    
+    # Calculate distance to goal
+    df = distance_to_goal(df)
+    
+    # Calculate shot angle
+    df = get_shot_angle(df)
+    
+    # Check if the shot was taken with the preferred foot
+    df = shot_preferred_foot(df,dff)
+    
+    # Create goal column
+    df = goal(df)
+    
+    return df
 # Function to calculate the number of defenders between the shooter and the goal
 
 # Function to calculate the number of players inside the area of shooting
