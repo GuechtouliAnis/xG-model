@@ -1,8 +1,7 @@
 from pyspark.sql.functions import col, regexp_extract,round, sqrt, pow, lit,udf,when
 from pyspark.sql.types import FloatType
 import pandas as pd
-import ast
-import math
+import ast, math
 
 ######### Function to split the location column into x and y coordinates #########
 def split_location(df):
@@ -58,6 +57,8 @@ def preferred_foot(events):
         .otherwise("Two-Footed"))
 
     return foot_counts.drop('left_foot', 'right_foot', 'total_actions')
+
+######### Function to check if the shot was taken with the preferred foot #########
 
 ######### Function to export shot data #########
 def shot_data(df):
