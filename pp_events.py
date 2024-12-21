@@ -3,6 +3,19 @@ from pyspark.sql.types import FloatType
 import pandas as pd
 import ast, math
 
+
+######### Function to export shot data #########
+def shot_data(df):
+    # Only shots
+    # 5th period is penalties
+    # set shot_freeze_frame to null when it's penalty
+    
+    columns = []
+    df = df.filter((df.type=='Shot') & (df.period < 5)).select(columns)
+    return df
+
+######### Function to export pass data #########
+
 ######### Function to split the location column into x and y coordinates #########
 def split_location(df):
     df_l = df.withColumn("shot_location_x", regexp_extract(col("location"), r'\[(.*?),', 1).cast("float")) \
@@ -15,62 +28,6 @@ def distance_to_goal(df):
     df = df.withColumn("distance_to_goal",
                        round(sqrt(pow(df.shot_location_x - lit(goal_x), 2) + pow(df.shot_location_y - lit(goal_y), 2)),4))
     return df
-
-######### Function to export shot_freeze_frame dataframe [id, shot_freeze_frame] #########
-def shot_freeze_frame(df):
-    df = df.select('id', 'shot_freeze_frame').dropna(subset=['shot_freeze_frame'])
-    return df
-
-######### Function to get the favorite foot of the shooter #########
-def preferred_foot(events):
-    # Filter Pass and Shot events, selecting relevant columns
-    pass_bp = events.filter(events.type == 'Pass')\
-        .select('player_id', col('pass_body_part').alias('body_part'))\
-        .filter(col('body_part').isin('Right Foot', 'Left Foot'))
-    
-    shot_bp = events.filter(events.type == 'Shot')\
-        .select('player_id', col('shot_body_part').alias('body_part'))\
-        .filter(col('body_part').isin('Right Foot', 'Left Foot'))
-
-    # Union the two DataFrames
-    bp = pass_bp.union(shot_bp)
-
-    # Map 'body_part' into separate columns for left and right foot counts
-    bp_mapped = bp.withColumn('left_foot', (col('body_part') == 'Left Foot').cast('int'))\
-        .withColumn('right_foot', (col('body_part') == 'Right Foot').cast('int'))\
-        .drop('body_part')
-
-    # Group by player and calculate sums for left and right foot counts
-    foot_counts = bp_mapped.groupBy('player_id')\
-        .sum('left_foot', 'right_foot')\
-        .withColumnRenamed('sum(left_foot)', 'left_foot')\
-        .withColumnRenamed('sum(right_foot)', 'right_foot')
-
-    # Add total actions column
-    foot_counts = foot_counts.withColumn("total_actions", col("left_foot") + col("right_foot"))
-
-    # Determine preferred foot based on the 66% rule
-    foot_counts = foot_counts.withColumn(
-        "preferred_foot",
-        when((col("left_foot") / col("total_actions")) >= 0.66, "Left Foot")
-        .when((col("right_foot") / col("total_actions")) >= 0.66, "Right Foot")
-        .otherwise("Two-Footed"))
-
-    return foot_counts.drop('left_foot', 'right_foot', 'total_actions')
-
-######### Function to check if the shot was taken with the preferred foot #########
-
-######### Function to export shot data #########
-def shot_data(df):
-    # Only shots
-    # 5th period is penalties
-    # set shot_freeze_frame to null when it's penalty
-    
-    columns = []
-    df = df.filter(df.type=='Shot' & df.period < 5).select(columns)
-    return df
-
-######### Function to export pass data #########
 
 ######### Function to calculate the angle to the goal #########
 def calculate_shot_angle(shot_x, shot_y):
@@ -103,6 +60,66 @@ def get_shot_angle(df):
     df = df.withColumn(
         "shot_angle",
         calculate_shot_angle_udf(df["shot_location_x"], df["shot_location_y"]))
+    return df
+
+######### Function to get the favorite foot of the shooter #########
+def preferred_foot(df):
+    # Filter Pass and Shot df, selecting relevant columns
+    pass_bp = df.filter(df.type == 'Pass')\
+        .select('player_id', col('pass_body_part').alias('body_part'))\
+        .filter(col('body_part').isin('Right Foot', 'Left Foot'))
+    
+    shot_bp = df.filter(df.type == 'Shot')\
+        .select('player_id', col('shot_body_part').alias('body_part'))\
+        .filter(col('body_part').isin('Right Foot', 'Left Foot'))
+
+    # Union the two DataFrames
+    bp = pass_bp.union(shot_bp)
+
+    # Map 'body_part' into separate columns for left and right foot counts
+    bp_mapped = bp.withColumn('left_foot', (col('body_part') == 'Left Foot').cast('int'))\
+        .withColumn('right_foot', (col('body_part') == 'Right Foot').cast('int'))\
+        .drop('body_part')
+
+    # Group by player and calculate sums for left and right foot counts
+    foot_counts = bp_mapped.groupBy('player_id')\
+        .sum('left_foot', 'right_foot')\
+        .withColumnRenamed('sum(left_foot)', 'left_foot')\
+        .withColumnRenamed('sum(right_foot)', 'right_foot')
+
+    # Add total actions column
+    foot_counts = foot_counts.withColumn("total_actions", col("left_foot") + col("right_foot"))
+
+    # Determine preferred foot based on the 66% rule
+    foot_counts = foot_counts.withColumn(
+        "preferred_foot",
+        when((col("left_foot") / col("total_actions")) >= 0.66, "Left Foot")
+        .when((col("right_foot") / col("total_actions")) >= 0.66, "Right Foot")
+        .otherwise("Two-Footed"))
+
+    return foot_counts.drop('left_foot', 'right_foot', 'total_actions')
+
+######### Function to check if the shot was taken with the preferred foot #########
+def shot_preferred_foot(df,dff):
+    dff = preferred_foot(dff)
+    df = df.join(dff, df.player_id == dff.player_id, how='left').drop(dff.player_id)
+    df = df.withColumn('preferred_foot_shot', col('preferred_foot') == col('shot_body_part'))
+    return df
+
+######### Function to create goal column #########
+def goal(df):
+    df = df.withColumn('goal', col('shot_outcome') == 'Goal')
+    return df
+
+######### Function to convert boolean columns to integer #########
+def bool_to_int(df, columns):
+    for col_name in columns:
+        df = df.withColumn(col_name, when(col(col_name).isNull(), 0).otherwise(col(col_name).cast('int')))
+    return df.fillna(0)
+
+######### Function to export shot_freeze_frame dataframe [id, shot_freeze_frame] #########
+def shot_freeze_frame(df):
+    df = df.select('id', 'shot_freeze_frame').dropna(subset=['shot_freeze_frame'])
     return df
 
 ######### Function to export shot_freeze_frame to a separate dataframe #########
