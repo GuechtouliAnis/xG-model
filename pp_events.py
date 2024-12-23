@@ -4,16 +4,18 @@ import pandas as pd
 import ast, math
 
 ######### Shot DataFrame necessary columns #########
-SHOT_COLUMNS = ['id','period','duration','location','player_id','position', # Event info
+EVENTS_COLUMNS = ['id','period','duration','location','player_id','position', # Event info
                 'play_pattern','shot_body_part','shot_technique','shot_type',        # Shot info
                 'related_events', 'shot_freeze_frame', 'shot_key_pass_id', 'shot_end_location', # Complicated info
                 'under_pressure','shot_aerial_won','shot_first_time','shot_one_on_one','shot_open_goal','shot_follows_dribble', # Boolean
-                'shot_statsbomb_xg','shot_outcome'# Target
+                'shot_statsbomb_xg','shot_outcome',# Target
+                'pass_body_part','type','shot_freeze_frame'
                 ]
 
 PASS_COLUMNS = []
 
 ML_READY_DATA = ['id','player_id','shot_location_x','shot_location_y','distance_to_goal','shot_angle','preferred_foot_shot',
+                 'shot_body_part','shot_technique','shot_type','play_pattern',
                  'under_pressure','shot_aerial_won','shot_first_time','shot_one_on_one','shot_open_goal','shot_follows_dribble',
                  'shot_statsbomb_xg','shot_outcome','goal']
 
@@ -148,7 +150,8 @@ def shot_freeze_frame(df):
     return df
 
 ######### Function to export shot_freeze_frame to a separate dataframe #########
-def shot_frame_to_df(df):
+def shot_frame_to_df(df,spark):
+    df = shot_freeze_frame(df)
     processed_rows = []
     for row in df.collect():
         id = row.id
@@ -159,8 +162,7 @@ def shot_frame_to_df(df):
             teammate = 'True' if 'True' in shot_frame[i].split('},')[2] else 'False'
             processed_rows.append({'Shot_id': id, 'x': x, 'y': y, 'position': position, 'teammate': teammate})
     
-    df = pd.DataFrame(processed_rows)
-    return df
+    return pd.DataFrame(processed_rows)
 
 # Function to calculate the number of players inside the area of shooting
 
@@ -174,6 +176,8 @@ def shot_frame_to_df(df):
 
 ######### Function to call on the main dataset that returns a MLlib ready dataframe #########
 def preprocessing(df):
+    
+    df = df.select(EVENTS_COLUMNS)
     
     # Spatial data
     df = spatial_data(df)

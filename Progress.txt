@@ -49,6 +49,7 @@ IN CODE
 - select pass features
 - export pass_data ready (preprocessed)
 - number of players inside the area of shot (Between the shot and the goal)
+- optimize that, distance, angle and number of players inside the area of shot are calculated in the same function
 - goalkeeper position
 - dummies
 - multiplier based on player position (defender, midfielder, attacker)
