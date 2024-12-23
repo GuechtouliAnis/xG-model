@@ -7,6 +7,15 @@ from pyspark.ml import Pipeline
 import pp_events as pp
 from pyspark.sql import SparkSession
 
+
+# xgboost model
+from xgboost import XGBRegressor
+# XGBoost, LightGBM, CatBoost
+#from pyspark.ml.classification import MultilayerPerceptronClassifier
+#from pyspark.ml.evaluation import MulticlassClassificationEvaluator
+
+
+
 spark = SparkSession.builder.appName('export_sff').getOrCreate()
 events = spark.read.csv('Data/events.csv',header=True,inferSchema=True,sep=';')
 

@@ -8,29 +8,15 @@ position
 location
 under_pressure
 related_events
-Block
-    - save_block
-Goalkeeper
-    - position
-    - type
-    - body_part
-    - technique
-    - outcome
 Pass
     - recipient
     - length
     - height
-    - end_location
-    - assisted_shot_id
     - cross
-    - shot_assist
-    - goal_assist
     - type
-    - outcome
     - technique
 Shot
     - key_pass_id
-    - end_location
     - aerial_won
     - open_goal
     - statsbomb_xg
@@ -84,3 +70,5 @@ Miscontrol
 Player Off
 Pressure
 Substitution
+Block
+Goalkeeper

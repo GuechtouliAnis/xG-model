@@ -101,6 +101,7 @@ def preferred_foot(df):
     return foot_counts.drop('left_foot', 'right_foot', 'total_actions')
 
 ######### Function to check if the shot was taken with the preferred foot #########
+# IF PLAYER IS TWO FOOTED THEN IT MUST RETURN TRUE
 def shot_preferred_foot(df,dff):
     dff = preferred_foot(dff)
     df = df.join(dff, df.player_id == dff.player_id, how='left').drop(dff.player_id)
@@ -156,7 +157,6 @@ def preprocessing(df,dff):
     df = goal(df)
     
     return df
-# Function to calculate the number of defenders between the shooter and the goal
 
 # Function to calculate the number of players inside the area of shooting
 
