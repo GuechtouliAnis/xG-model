@@ -1,21 +1,34 @@
-import re
 from pyspark.sql.functions import col, regexp_extract,round, sqrt, pow, lit,udf,when
 from pyspark.sql.types import FloatType
 import pandas as pd
 import ast, math
 
+######### Shot DataFrame necessary columns #########
+SHOT_COLUMNS = ['id','period','duration','location','player_id','position', # Event info
+                'play_pattern','shot_body_part','shot_technique','shot_type',        # Shot info
+                'related_events', 'shot_freeze_frame', 'shot_key_pass_id', 'shot_end_location', # Complicated info
+                'under_pressure','shot_aerial_won','shot_first_time','shot_one_on_one','shot_open_goal','shot_follows_dribble', # Boolean
+                'shot_statsbomb_xg','shot_outcome'# Target
+                ]
+
+PASS_COLUMNS = []
+
+ML_READY_DATA = ['id','player_id','shot_location_x','shot_location_y','distance_to_goal','shot_angle','preferred_foot_shot',
+                 'under_pressure','shot_aerial_won','shot_first_time','shot_one_on_one','shot_open_goal','shot_follows_dribble',
+                 'shot_statsbomb_xg','shot_outcome','goal']
+
+BOOL_TO_INT_COLUMNS = ['preferred_foot_shot','under_pressure','shot_aerial_won','shot_first_time','shot_one_on_one',
+                      'shot_open_goal','shot_follows_dribble','goal']
+
 
 ######### Function to export shot data #########
 def shot_data(df):
-    # Only shots
-    # 5th period is penalties
-    # set shot_freeze_frame to null when it's penalty
-    
-    columns = []
-    df = df.filter((df.type=='Shot') & (df.period < 5)).select(columns)
+    df = df.filter(df.type=='Shot').select(ML_READY_DATA)
     return df
 
 ######### Function to export pass data #########
+def pass_data(df):
+    pass
 
 ######### Function to split the location column into x and y coordinates #########
 def split_location(df):
@@ -63,6 +76,12 @@ def get_shot_angle(df):
         calculate_shot_angle_udf(df["shot_location_x"], df["shot_location_y"]))
     return df
 
+######### Function to get Spatial Data #########
+def spatial_data(df):
+    df = split_location(df)
+    df = distance_to_goal(df)
+    return get_shot_angle(df)
+
 ######### Function to get the favorite foot of the shooter #########
 def preferred_foot(df):
     # Filter Pass and Shot df, selecting relevant columns
@@ -101,11 +120,15 @@ def preferred_foot(df):
     return foot_counts.drop('left_foot', 'right_foot', 'total_actions')
 
 ######### Function to check if the shot was taken with the preferred foot #########
-# IF PLAYER IS TWO FOOTED THEN IT MUST RETURN TRUE
-def shot_preferred_foot(df,dff):
-    dff = preferred_foot(dff)
+def shot_preferred_foot(df):
+    dff = preferred_foot(df)
     df = df.join(dff, df.player_id == dff.player_id, how='left').drop(dff.player_id)
-    df = df.withColumn('preferred_foot_shot', col('preferred_foot') == col('shot_body_part'))
+
+    df = df.withColumn(
+        'preferred_foot_shot',
+        when(
+            (col('preferred_foot') == 'Two-Footed') & (col('shot_body_part').isin('Right Foot', 'Left Foot')),
+            True).otherwise(col('preferred_foot') == col('shot_body_part')))
     return df
 
 ######### Function to create goal column #########
@@ -121,7 +144,7 @@ def bool_to_int(df, columns):
 
 ######### Function to export shot_freeze_frame dataframe [id, shot_freeze_frame] #########
 def shot_freeze_frame(df):
-    df = df.select('id', 'shot_freeze_frame').dropna(subset=['shot_freeze_frame'])
+    df = df.filter(col('shot_type')!='Penalty').select('id', 'shot_freeze_frame').dropna(subset=['shot_freeze_frame'])
     return df
 
 ######### Function to export shot_freeze_frame to a separate dataframe #########
@@ -139,25 +162,6 @@ def shot_frame_to_df(df):
     df = pd.DataFrame(processed_rows)
     return df
 
-
-def preprocessing(df,dff):
-    # Split location column into x and y coordinates
-    df = split_location(df)
-    
-    # Calculate distance to goal
-    df = distance_to_goal(df)
-    
-    # Calculate shot angle
-    df = get_shot_angle(df)
-    
-    # Check if the shot was taken with the preferred foot
-    df = shot_preferred_foot(df,dff)
-    
-    # Create goal column
-    df = goal(df)
-    
-    return df
-
 # Function to calculate the number of players inside the area of shooting
 
 # Function to get the position that the shooter plays
@@ -167,3 +171,22 @@ def preprocessing(df,dff):
 # Function to get pass information
 
 # Functions to create visualizations
+
+######### Function to call on the main dataset that returns a MLlib ready dataframe #########
+def preprocessing(df):
+    
+    # Spatial data
+    df = spatial_data(df)
+    
+    # Check if the shot was taken with the preferred foot
+    df = shot_preferred_foot(df)
+    
+    # Create goal column
+    df = goal(df)
+    
+    # Convert Boolean data to integer
+    df = bool_to_int(df, columns=BOOL_TO_INT_COLUMNS)
+    
+    return shot_data(df)
+
+

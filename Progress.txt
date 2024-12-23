@@ -38,24 +38,26 @@ Report
 - was the shot taken by the player's dominant foot
 - extract goal or not from shot outcome
 - export shot_freeze_frame as a df
+- if player is two footed and shot was not by head or others then shot_preferred_foot must be True
+- select features
+- Regularization
+- Cross validation
 
 ########## What needs to be done ##########
 IN CODE
-- if player is two footed and shot was not by head or others then shot_preferred_foot must be True
-- select features
+- can we calculate shot speed?
 - export shot_data ready (preprocessed)
 - select pass features
 - export pass_data ready (preprocessed)
-- visualisation functions
 - number of players inside the area of shot (Between the shot and the goal)
 - goalkeeper position
 - dummies
 - multiplier based on player position (defender, midfielder, attacker)
 - try different models
+- visualisation functions
 - time tracking
 
 IN REPORT
-
 - Introduction
     - What is xG
     - Is it Regression or Classification?
