@@ -29,7 +29,6 @@ Report
         + Discussion
         + Conclusion
 
-
 ########## What has been done ##########
 - split location into x and y
 - calculate distance to goal
@@ -40,13 +39,13 @@ Report
 - export shot_freeze_frame as a df
 - if player is two footed and shot was not by head or others then shot_preferred_foot must be True
 - select features
-- Regularization
-- Cross validation
+- export shot_data ready (preprocessed)
+
+
+
 
 ########## What needs to be done ##########
 IN CODE
-- can we calculate shot speed?
-- export shot_data ready (preprocessed)
 - select pass features
 - export pass_data ready (preprocessed)
 - number of players inside the area of shot (Between the shot and the goal)
@@ -56,6 +55,11 @@ IN CODE
 - try different models
 - visualisation functions
 - time tracking
+- Regularization
+- Cross validation
+
+
+
 
 IN REPORT
 - Introduction
