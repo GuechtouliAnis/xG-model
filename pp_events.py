@@ -1,6 +1,8 @@
 from pyspark.sql.functions import col, regexp_extract,round, sqrt, pow, lit,udf,when
-from pyspark.sql.types import FloatType
+from pyspark.sql import functions as F
+from pyspark.sql.types import IntegerType, FloatType
 import pandas as pd
+import numpy as np
 import ast, math
 
 ######### Shot DataFrame necessary columns #########
@@ -17,11 +19,15 @@ PASS_COLUMNS = []
 ML_READY_DATA = ['id','player_id','shot_location_x','shot_location_y','distance_to_goal','shot_angle','preferred_foot_shot',
                  'shot_body_part','shot_technique','shot_type','play_pattern',
                  'under_pressure','shot_aerial_won','shot_first_time','shot_one_on_one','shot_open_goal','shot_follows_dribble',
+                 'players_inside_area',
                  'shot_statsbomb_xg','shot_outcome','goal']
 
 BOOL_TO_INT_COLUMNS = ['preferred_foot_shot','under_pressure','shot_aerial_won','shot_first_time','shot_one_on_one',
                       'shot_open_goal','shot_follows_dribble','goal']
 
+
+goal_X = 120
+goal_Y1, goal_Y2 = 36, 44
 
 ######### Function to export shot data #########
 def shot_data(df):
@@ -150,7 +156,7 @@ def shot_freeze_frame(df):
     return df
 
 ######### Function to export shot_freeze_frame to a separate dataframe #########
-def shot_frame_to_df(df,spark):
+def shot_frame_to_df(df):
     df = shot_freeze_frame(df)
     processed_rows = []
     for row in df.collect():
@@ -164,33 +170,71 @@ def shot_frame_to_df(df,spark):
     
     return pd.DataFrame(processed_rows)
 
-# Function to calculate the number of players inside the area of shooting
+######### Function to calculate the number of players inside the area of shooting #########
+def calculate_area(x1, y1, x2, y2, x3, y3):
+    return abs(x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2)) / 2.0
 
-# Function to get the position that the shooter plays
+def is_point_inside_triangle(player_x,player_y,shot_x,shot_y):
+    # Total area of the triangle ABC
+    area_abc = calculate_area(shot_x,shot_y,goal_X,goal_Y1,goal_X,goal_Y2)
 
-# Function to add a multiplier according to the position of the shooter
+    # Area of sub-triangles ABP, BCP, CAP
+    area_abp = calculate_area(shot_x,shot_y,goal_X,goal_Y1,player_x,player_y)
+    area_bcp = calculate_area(shot_x,shot_y,goal_X,goal_Y2,player_x,player_y)
+    area_cap = calculate_area(goal_X,goal_Y2,goal_X,goal_Y1,player_x,player_y)
+
+    return np.isclose(area_abc, (area_abp + area_bcp + area_cap))
+
+def check_point_inside(coordinates, shot_x, shot_y):
+    count = 0
+    for coord in coordinates:
+        player_x, player_y = coord
+        if is_point_inside_triangle(player_x, player_y, shot_x, shot_y):
+            count += 1
+    return count
+
+def number_of_players_in_area(df,spark):
+
+    frames = shot_frame_to_df(df)
+    frames = (frames.groupby('Shot_id').apply(lambda group: group[['x', 'y']].values.tolist()).reset_index(name='coordinates'))
+    frames = spark.createDataFrame(frames)
+    frames = frames.join(df.select('id','shot_location_x','shot_location_y'),frames.Shot_id == df.id).drop('id')
+
+    # Register the UDF
+    check_point_udf = F.udf(check_point_inside, returnType=IntegerType())  # Use IntegerType from pyspark.sql.types
+
+    # Add a column with the count of points inside the area for each row in the DataFrame
+    frames = frames.withColumn("players_inside_area", check_point_udf(F.col("coordinates"), F.col("shot_location_x"), F.col("shot_location_y")))
+    df = df.join(frames.select('Shot_id','players_inside_area'),df.id == frames.Shot_id,how='left').drop('Shot_id')
+    df = df.withColumn('players_inside_area',F.when(F.col('shot_type') == 'Penalty',1).otherwise(F.col('players_inside_area')))
+    
+    return df
 
 # Function to get pass information
 
 # Functions to create visualizations
 
 ######### Function to call on the main dataset that returns a MLlib ready dataframe #########
-def preprocessing(df):
+def preprocessing(df,spark):
     
     df = df.select(EVENTS_COLUMNS)
-    
+    print('Data loaded')
     # Spatial data
     df = spatial_data(df)
-    
+    print('Spatial data calculated')
     # Check if the shot was taken with the preferred foot
     df = shot_preferred_foot(df)
-    
+    print('Preferred foot calculated')
     # Create goal column
     df = goal(df)
-    
+    print('Goal column created')
+    # Number of players inside the area
+    df = number_of_players_in_area(df,spark)
+    print('Number of players inside the area calculated')
     # Convert Boolean data to integer
     df = bool_to_int(df, columns=BOOL_TO_INT_COLUMNS)
-    
+    print('Boolean data converted to integer')
+
     return shot_data(df)
 
 
