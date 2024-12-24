@@ -259,7 +259,6 @@ def create_dummies(df):
     df = shot_type_dummies(df)
     return shot_technique_dummies(df)
 
-# Function to get pass information
 
 # Functions to create visualizations
 
@@ -280,6 +279,7 @@ def preprocessing(df,spark):
     # Number of players inside the area
     df = number_of_players_in_area(df,spark)
     print('Number of players inside the area calculated')
+    # Create Dummies
     df = create_dummies(df)
     print('Dummies created')
     # Convert Boolean data to integer
@@ -288,4 +288,4 @@ def preprocessing(df,spark):
 
     return shot_data(df)
 
-
+######### ML Functions #########

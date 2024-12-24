@@ -59,6 +59,7 @@ IN CODE
 - xG per shot type, FK, PK, heatmap on area
 - Correlation between features
 - Learning curve, precision, recall etc
+- optimize code
 
 + distance to the goalkeeper
 + select pass features
