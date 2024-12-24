@@ -16,11 +16,21 @@ EVENTS_COLUMNS = ['id','period','duration','location','player_id','position', # 
 
 PASS_COLUMNS = []
 
+ML_READY_DATA_DUMMIES = ['id','player_id','shot_location_x','shot_location_y','distance_to_goal','shot_angle','preferred_foot_shot',
+                 'other_pp','from_fk','from_ti','from_corner','from_counter','from_gk','from_keeper','from_ko',
+                 'header','corner_type','fk_type','pk_type',
+                 'half_volley_technique','volley_technique','lob_technique','overhead_technique','backheel_technique','diving_h_technique',
+                 'under_pressure','shot_aerial_won','shot_first_time','shot_one_on_one','shot_open_goal','shot_follows_dribble',
+                 'players_inside_area',
+                 'shot_statsbomb_xg','shot_outcome','goal']
+
 ML_READY_DATA = ['id','player_id','shot_location_x','shot_location_y','distance_to_goal','shot_angle','preferred_foot_shot',
                  'shot_body_part','shot_technique','shot_type','play_pattern',
                  'under_pressure','shot_aerial_won','shot_first_time','shot_one_on_one','shot_open_goal','shot_follows_dribble',
                  'players_inside_area',
                  'shot_statsbomb_xg','shot_outcome','goal']
+
+
 
 BOOL_TO_INT_COLUMNS = ['preferred_foot_shot','under_pressure','shot_aerial_won','shot_first_time','shot_one_on_one',
                       'shot_open_goal','shot_follows_dribble','goal']
@@ -31,7 +41,7 @@ goal_Y1, goal_Y2 = 36, 44
 
 ######### Function to export shot data #########
 def shot_data(df):
-    df = df.filter(df.type=='Shot').select(ML_READY_DATA)
+    df = df.filter(df.type=='Shot').select(ML_READY_DATA_DUMMIES)
     return df
 
 ######### Function to export pass data #########
@@ -210,6 +220,45 @@ def number_of_players_in_area(df,spark):
     
     return df
 
+######### Function to create Dummies #########
+def play_pattern_dummies(df):
+    df = df.withColumn('other_pp',when((col('play_pattern')=='Other'),1).otherwise(0)) \
+    .withColumn('from_fk',        when((col('play_pattern')=='From Free Kick'),1).otherwise(0)) \
+    .withColumn('from_ti',        when((col('play_pattern')=='From Throw In'),1).otherwise(0)) \
+    .withColumn('from_corner',    when((col('play_pattern')=='From Corner'),1).otherwise(0)) \
+    .withColumn('from_counter',   when((col('play_pattern')=='From Counter'),1).otherwise(0)) \
+    .withColumn('from_gk',        when((col('play_pattern')=='From Goal Kick'),1).otherwise(0)) \
+    .withColumn('from_keeper',    when((col('play_pattern')=='From Keeper'),1).otherwise(0)) \
+    .withColumn('from_ko',             when((col('play_pattern')=='From Kick Off'),1).otherwise(0)).drop('play_pattern')
+    return df
+
+def header_dummies(df):
+    return df.withColumn('header', when((col('shot_body_part')=='Head'),1).otherwise(0)).drop('shot_body_part')
+
+def shot_type_dummies(df):
+    df = df.withColumn('corner_type', when((col('shot_type')=='Corner'),1).otherwise(0)) \
+    .withColumn('fk_type',            when((col('shot_type')=='Free Kick'),1).otherwise(0)) \
+    .withColumn('pk_type',            when((col('shot_type')=='Penalty'),1).otherwise(0)) \
+    .drop('shot_type')
+    return df
+
+def shot_technique_dummies(df):
+    df = df.withColumn('half_volley_technique',when((col('shot_technique')=='Half Volley'),1).otherwise(0)) \
+    .withColumn('volley_technique',           when((col('shot_technique')=='Volley'),1).otherwise(0)) \
+    .withColumn('lob_technique',              when((col('shot_technique')=='Lob'),1).otherwise(0)) \
+    .withColumn('overhead_technique',         when((col('shot_technique')=='Overhead Kick'),1).otherwise(0)) \
+    .withColumn('backheel_technique',         when((col('shot_technique')=='Backheel'),1).otherwise(0)) \
+    .withColumn('diving_h_technique',         when((col('shot_technique')=='Diving Header'),1).otherwise(0)) \
+    .drop('shot_technique')
+    return df
+
+
+def create_dummies(df):
+    df = play_pattern_dummies(df)
+    df = header_dummies(df)
+    df = shot_type_dummies(df)
+    return shot_technique_dummies(df)
+
 # Function to get pass information
 
 # Functions to create visualizations
@@ -231,6 +280,8 @@ def preprocessing(df,spark):
     # Number of players inside the area
     df = number_of_players_in_area(df,spark)
     print('Number of players inside the area calculated')
+    df = create_dummies(df)
+    print('Dummies created')
     # Convert Boolean data to integer
     df = bool_to_int(df, columns=BOOL_TO_INT_COLUMNS)
     print('Boolean data converted to integer')
