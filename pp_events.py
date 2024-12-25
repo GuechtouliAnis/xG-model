@@ -1,5 +1,4 @@
 from pyspark.sql.functions import col, regexp_extract,round, sqrt, pow, lit,udf,when
-from pyspark.sql import functions as F
 from pyspark.sql.types import IntegerType, FloatType
 import pandas as pd
 import numpy as np
@@ -24,7 +23,7 @@ ML_READY_DATA_DUMMIES = ['id','player_id','shot_location_x','shot_location_y','d
                  'players_inside_area',
                  'shot_statsbomb_xg','shot_outcome','goal']
 
-ML_READY_DATA = ['id','player_id','shot_location_x','shot_location_y','distance_to_goal','shot_angle','preferred_foot_shot',
+ML_READY_DATA = ['id','shot_location_x','shot_location_y','distance_to_goal','shot_angle','preferred_foot_shot',
                  'shot_body_part','shot_technique','shot_type','play_pattern',
                  'under_pressure','shot_aerial_won','shot_first_time','shot_one_on_one','shot_open_goal','shot_follows_dribble',
                  'players_inside_area',
@@ -211,12 +210,12 @@ def number_of_players_in_area(df,spark):
     frames = frames.join(df.select('id','shot_location_x','shot_location_y'),frames.Shot_id == df.id).drop('id')
 
     # Register the UDF
-    check_point_udf = F.udf(check_point_inside, returnType=IntegerType())  # Use IntegerType from pyspark.sql.types
+    check_point_udf = udf(check_point_inside, returnType=IntegerType())  # Use IntegerType from pyspark.sql.types
 
     # Add a column with the count of points inside the area for each row in the DataFrame
-    frames = frames.withColumn("players_inside_area", check_point_udf(F.col("coordinates"), F.col("shot_location_x"), F.col("shot_location_y")))
+    frames = frames.withColumn("players_inside_area", check_point_udf(col("coordinates"), col("shot_location_x"), col("shot_location_y")))
     df = df.join(frames.select('Shot_id','players_inside_area'),df.id == frames.Shot_id,how='left').drop('Shot_id')
-    df = df.withColumn('players_inside_area',F.when(F.col('shot_type') == 'Penalty',1).otherwise(F.col('players_inside_area')))
+    df = df.withColumn('players_inside_area',when(col('shot_type') == 'Penalty',1).otherwise(col('players_inside_area')))
     
     return df
 

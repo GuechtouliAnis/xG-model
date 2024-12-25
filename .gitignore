@@ -2,7 +2,8 @@ myenv
 .vscode
 todo.txt
 Data
-learn*
+Datas
 *try*
 spark-warehouse
 __pycache__
+pre_*

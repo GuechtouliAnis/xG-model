@@ -33,7 +33,7 @@ Shot
     - angle of open area between most left/right player and left/right extreme
     - keeper position
     - fav foot -> Foot used to take a set piece will auto be considered as fav foot
-    - Position (remove Left/Right)
+     - Position (remove Left/Right)
     - Join Shot with its pass data
     - Separate Shot freeze frame data
 
