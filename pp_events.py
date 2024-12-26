@@ -1,8 +1,14 @@
-from pyspark.sql.functions import col, regexp_extract,round, sqrt, pow, lit,udf,when
-from pyspark.sql.types import IntegerType, FloatType
+from pyspark.sql.functions import col, regexp_extract,round, sqrt, pow, lit, udf, when, format_number
+from pyspark.ml.classification import LogisticRegression, RandomForestClassifier, GBTClassifier, DecisionTreeClassifier
+from pyspark.ml.feature import VectorAssembler
+from pyspark.sql.types import IntegerType, FloatType, DoubleType
+from pyspark.ml.evaluation import BinaryClassificationEvaluator
+import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import ast, math
+
+models = ['logistic_regression', 'random_forest', 'gbt', 'decision_tree']
 
 ######### Shot DataFrame necessary columns #########
 EVENTS_COLUMNS = ['id','period','duration','location','player_id','position', # Event info
@@ -276,3 +282,51 @@ def preprocessing(df,spark):
     print('Boolean data converted to integer')
 
     return shot_data(df)
+
+######### Function to split the data into training and testing #########
+def pre_training(df,features,train_size=0.8):
+    feature_assembler = VectorAssembler(inputCols=features, outputCol="features_vector")
+    assembled_data = feature_assembler.transform(df)
+    train_data, test_data = assembled_data.randomSplit([train_size, 1-train_size], seed=42)
+    return train_data, test_data
+
+######### Function to train the model #########
+def train_model(train_data, model_name,label='goal', max_iter=100):
+    if model_name == 'logistic_regression':
+        model = LogisticRegression(featuresCol='features_vector', labelCol=label, maxIter=max_iter)
+    elif model_name == 'random_forest':
+        model = RandomForestClassifier(featuresCol='features_vector', labelCol=label)
+    elif model_name == 'gbt':
+        model = GBTClassifier(featuresCol='features_vector', labelCol=label)
+    elif model_name == 'decision_tree':
+        model = DecisionTreeClassifier(featuresCol='features_vector', labelCol=label)
+    else:
+        raise ValueError('Model not supported, please choose from logistic_regression, random_forest, gbt, decision_tree')
+    trained_model = model.fit(train_data)
+    return trained_model
+
+######### Function to extract the goal probability #########
+def goal_proba(df):
+    """
+    Processes the goal probability column in the given df DataFrame.
+
+    :param df: PySpark DataFrame with a 'probability' column containing lists.
+    :return: Updated DataFrame with the 'goal_probability' column as a float.
+    """
+    # Define the function to extract the second element from the probability list
+    def extract_goal_probability(probability):
+        return float(probability[1])
+
+    # Register the function as a UDF
+    extract_goal_probability_udf = udf(extract_goal_probability, DoubleType())
+
+    # Overwrite the prediction column using the UDF
+    df = df.withColumn("goal_probability", extract_goal_probability_udf(col("probability")))
+
+    # Format the goal_probability to remove scientific notation
+    df = df.withColumn("goal_probability", format_number(col("goal_probability"), 10))
+    
+    # Convert goal_probability to float
+    return df.withColumn("goal_probability", col("goal_probability").cast(DoubleType()))
+
+######### learning curve #########
