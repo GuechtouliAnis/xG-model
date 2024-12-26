@@ -29,11 +29,8 @@ ML_READY_DATA = ['id','shot_location_x','shot_location_y','distance_to_goal','sh
                  'players_inside_area',
                  'shot_statsbomb_xg','shot_outcome','goal']
 
-
-
 BOOL_TO_INT_COLUMNS = ['preferred_foot_shot','under_pressure','shot_aerial_won','shot_first_time','shot_one_on_one',
                       'shot_open_goal','shot_follows_dribble','goal']
-
 
 goal_X = 120
 goal_Y1, goal_Y2 = 36, 44
@@ -41,11 +38,7 @@ goal_Y1, goal_Y2 = 36, 44
 ######### Function to export shot data #########
 def shot_data(df):
     df = df.filter(df.type=='Shot').select(ML_READY_DATA_DUMMIES)
-    return df
-
-######### Function to export pass data #########
-def pass_data(df):
-    pass
+    return df.withColumn('sb_prediction', round(col('shot_statsbomb_xg')))
 
 ######### Function to split the location column into x and y coordinates #########
 def split_location(df):
@@ -258,9 +251,6 @@ def create_dummies(df):
     df = shot_type_dummies(df)
     return shot_technique_dummies(df)
 
-
-# Functions to create visualizations
-
 ######### Function to call on the main dataset that returns a MLlib ready dataframe #########
 def preprocessing(df,spark):
     
@@ -286,5 +276,3 @@ def preprocessing(df,spark):
     print('Boolean data converted to integer')
 
     return shot_data(df)
-
-######### ML Functions #########

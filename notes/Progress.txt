@@ -43,30 +43,26 @@ Report
 - number of players inside the area of shot (Between the shot and the goal)
 - dummies
 - try different models
-
-
-
+- precision, recall etc
+- Learning curve
 
 ########## What needs to be done ##########
 IN CODE
-- Ensembles RDD based api
-- Fine Tuning
-- Comparaison of models
-- visualisation functions
-- time tracking
-- Regularization
-- Cross validation
 - xG per shot type, FK, PK, heatmap on area
 - Correlation between features
-- Learning curve, precision, recall etc
+- visualisation functions
+
+- Regularization
+- Cross validation
+- Comparaison of models
+
+- Ensembles RDD based api
+- Fine Tuning
 - optimize code
+- time tracking
 
 + distance to the goalkeeper
-+ select pass features
-+ export pass_data ready (preprocessed)
 + optimize that, distance, angle and number of players inside the area of shot are calculated in the same function
-+ multiplier based on player position (defender, midfielder, attacker)
-+ Is my model better than SB in some areas?
 
 IN REPORT
 - Introduction

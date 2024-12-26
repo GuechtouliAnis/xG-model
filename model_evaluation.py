@@ -1,5 +1,6 @@
 from pyspark.sql import functions as F
 from pyspark.ml.evaluation import RegressionEvaluator
+from pyspark.sql.types import DoubleType, FloatType
 
 class ModelEvaluation:
     def __init__(self, df, result_col, prediction_col, model_type="classification"):
@@ -15,13 +16,13 @@ class ModelEvaluation:
         self.result_col = result_col
         self.prediction_col = prediction_col
         self.model_type = model_type
-        
+
         # Calculate metrics based on the model type
         if self.model_type == "classification":
             self.metrics = self.calculate_classification_metrics()
         elif self.model_type == "regression":
             self.metrics = self.calculate_regression_metrics()
-    
+        
     def calculate_classification_metrics(self):
         """
         Calculates TP, TN, FP, FN based on the actual results and predicted results.
@@ -46,13 +47,14 @@ class ModelEvaluation:
             'FP': fp,
             'FN': fn
         }
-    
+     
     def calculate_regression_metrics(self):
         """
-        Calculates regression metrics such as MSE, RMSE, MAE, and R².
+        Calculates regression metrics such as MSE, RMSE, MAE, and R2.
         
         :return: A dictionary with regression metrics.
         """
+        
         evaluator_mse = RegressionEvaluator(labelCol=self.result_col, predictionCol=self.prediction_col, metricName="mse")
         evaluator_rmse = RegressionEvaluator(labelCol=self.result_col, predictionCol=self.prediction_col, metricName="rmse")
         evaluator_mae = RegressionEvaluator(labelCol=self.result_col, predictionCol=self.prediction_col, metricName="mae")
