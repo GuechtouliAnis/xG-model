@@ -1,6 +1,5 @@
 from pyspark.sql import functions as F
 from pyspark.ml.evaluation import RegressionEvaluator
-from pyspark.sql.types import DoubleType, FloatType
 
 class ModelEvaluation:
     def __init__(self, df, result_col, prediction_col, model_type="classification"):

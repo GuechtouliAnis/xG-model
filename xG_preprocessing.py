@@ -19,8 +19,6 @@ EVENTS_COLUMNS = ['id','period','duration','location','player_id','position', # 
                 'pass_body_part','type','shot_freeze_frame'
                 ]
 
-PASS_COLUMNS = []
-
 ML_READY_DATA_DUMMIES = ['id','player_id','shot_location_x','shot_location_y','distance_to_goal','shot_angle','preferred_foot_shot',
                  'other_pp','from_fk','from_ti','from_corner','from_counter','from_gk','from_keeper','from_ko',
                  'header','corner_type','fk_type','pk_type',
@@ -290,21 +288,6 @@ def pre_training(df,features,train_size=0.8):
     train_data, test_data = assembled_data.randomSplit([train_size, 1-train_size], seed=42)
     return train_data, test_data
 
-######### Function to train the model #########
-def train_model(train_data, model_name,label='goal', max_iter=100):
-    if model_name == 'logistic_regression':
-        model = LogisticRegression(featuresCol='features_vector', labelCol=label, maxIter=max_iter)
-    elif model_name == 'random_forest':
-        model = RandomForestClassifier(featuresCol='features_vector', labelCol=label)
-    elif model_name == 'gbt':
-        model = GBTClassifier(featuresCol='features_vector', labelCol=label)
-    elif model_name == 'decision_tree':
-        model = DecisionTreeClassifier(featuresCol='features_vector', labelCol=label)
-    else:
-        raise ValueError('Model not supported, please choose from logistic_regression, random_forest, gbt, decision_tree')
-    trained_model = model.fit(train_data)
-    return trained_model
-
 ######### Function to extract the goal probability #########
 def goal_proba(df):
     """
@@ -328,5 +311,3 @@ def goal_proba(df):
     
     # Convert goal_probability to float
     return df.withColumn("goal_probability", col("goal_probability").cast(DoubleType()))
-
-######### learning curve #########
