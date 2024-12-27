@@ -92,13 +92,17 @@ class ModelTrainer:
             self.model_trained = self.train_model()
             self.predictions = self.get_predictions()
             roc_auc = self.evaluate_model()
-            print(f"ROC-AUC for max_iter={max_iter}: {roc_auc}")
-            roc_auc_list.append(roc_auc)
+            
+            # Convert ROC-AUC to percentage and print it
+            roc_auc_percentage = roc_auc * 100
+            print(f"ROC-AUC for max_iter={max_iter}: {roc_auc_percentage:.2f}%")
+            
+            roc_auc_list.append(roc_auc_percentage)
 
         # Plot the ROC-AUC learning curve
         plt.plot(max_iter_range, roc_auc_list, marker='o')
         plt.xlabel('Number of Iterations')
-        plt.ylabel('ROC-AUC')
+        plt.ylabel('ROC-AUC (%)')
         plt.title('Learning Curve for Model (ROC-AUC vs Iterations)')
         plt.grid(True)
         plt.show()

@@ -2,7 +2,7 @@ from pyspark.sql import functions as F
 from pyspark.ml.evaluation import RegressionEvaluator
 
 class ModelEvaluation:
-    def __init__(self, df, result_col, prediction_col, model_type="classification"):
+    def __init__(self, df, result_col='goal', prediction_col='prediction', model_type="classification"):
         """
         Initializes the ModelEvaluation class with the DataFrame, column names, and model type.
 
@@ -65,11 +65,12 @@ class ModelEvaluation:
         r2 = evaluator_r2.evaluate(self.df)
         
         return {
-            'MSE': mse,
-            'RMSE': rmse,
-            'MAE': mae,
-            'R2': r2
+            'MSE': round(mse, 5),
+            'RMSE': round(rmse, 5),
+            'MAE': round(mae, 5),
+            'R2': round(r2*100, 2)
         }
+
     
     def accuracy(self):
         """Calculates accuracy (classification only)."""
@@ -129,14 +130,15 @@ class ModelEvaluation:
         """Returns all metrics in a dictionary."""
         if self.model_type == "classification":
             return {
-                'Accuracy': self.accuracy(),
-                'Precision': self.precision(),
-                'Recall': self.recall(),
-                'Sensitivity': self.sensitivity(),
-                'Specificity': self.specificity(),
-                'F1': self.f1(),
-                'FPR': self.fpr(),
-                'FNR': self.fnr()
+                'Accuracy': round(self.accuracy() * 100, 2),
+                'Precision': round(self.precision() * 100, 2),
+                'Recall': round(self.recall() * 100, 2),
+                'Sensitivity': round(self.sensitivity() * 100, 2),
+                'Specificity': round(self.specificity() * 100, 2),
+                'F1': round(self.f1() * 100, 2),
+                'FPR': round(self.fpr() * 100, 2),
+                'FNR': round(self.fnr() * 100, 2)
             }
+
         elif self.model_type == "regression":
             return self.metrics
