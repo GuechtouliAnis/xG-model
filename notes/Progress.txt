@@ -30,39 +30,47 @@ Report
         + Conclusion
 
 ########## What has been done ##########
-- split location into x and y
-- calculate distance to goal
-- calculate angle of shot
-- calculate footedness
-- was the shot taken by the player's dominant foot
-- extract goal or not from shot outcome
-- export shot_freeze_frame as a df
-- if player is two footed and shot was not by head or others then shot_preferred_foot must be True
-- select features
-- export shot_data ready (preprocessed)
-- number of players inside the area of shot (Between the shot and the goal)
-- dummies
-- try different models
-- precision, recall etc
-- Learning curve
+    - split location into x and y
+    - calculate distance to goal
+    - calculate angle of shot
+    - calculate footedness
+    - was the shot taken by the player's dominant foot
+    - extract goal or not from shot outcome
+    - export shot_freeze_frame as a df
+    - if player is two footed and shot was not by head or others then shot_preferred_foot must be True
+    - select features
+    - export shot_data ready (preprocessed)
+    - number of players inside the area of shot (Between the shot and the goal)
+    - dummies
+    - try different models
+    - precision, recall etc
+    - Learning curve
+    - Ensembles RDD based api
+
 
 ########## What needs to be done ##########
 IN CODE
-- xG per shot type, FK, PK, heatmap on area
-- Correlation between features
-- visualisation functions
+    - xG per shot type, FK, PK, heatmap on area
+    - Correlation between features
+    - visualisation functions
 
-- Regularization
-- Cross validation
-- Comparaison of models
+    - Regularization
+    - Cross validation
+    - Comparaison of models
 
-- Ensembles RDD based api
-- Fine Tuning
-- optimize code
-- time tracking
+    - Fine Tuning
+    - optimize code
+    - time tracking
+    - Precision / Recall curve
+    - Database description
 
-+ distance to the goalkeeper
-+ optimize that, distance, angle and number of players inside the area of shot are calculated in the same function
+    - 2 nodes
+    - 3 nodes
+    - Cloud Computing
+
+    + distance to the goalkeeper
+    + optimize that, distance, angle and number of players inside the area of shot are calculated in the same function
+
 
 IN REPORT
 - Introduction
