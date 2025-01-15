@@ -57,6 +57,7 @@ IN CODE
     - Regularization
     - Cross validation
     - Comparaison of models
+    - ETL
 
     - Fine Tuning
     - optimize code
