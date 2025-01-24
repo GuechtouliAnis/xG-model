@@ -64,6 +64,7 @@ IN CODE
     - time tracking
     - Precision / Recall curve
     - Database description
+    - Data Augumentation
 
     - 2 nodes
     - 3 nodes
