@@ -1,6 +1,14 @@
 import matplotlib.pyplot as plt
-from pyspark.ml.classification import LogisticRegression, RandomForestClassifier, MultilayerPerceptronClassifier, GBTClassifier, NaiveBayes, DecisionTreeClassifier, LinearSVC
+from pyspark.ml.classification import LogisticRegression, RandomForestClassifier, MultilayerPerceptronClassifier
+from pyspark.ml.classification import GBTClassifier, NaiveBayes, DecisionTreeClassifier, LinearSVC
 from pyspark.ml.evaluation import BinaryClassificationEvaluator
+import pandas as pd
+FEATURES = ['other_pp','from_fk','from_ti','from_corner','from_counter','from_gk','from_keeper','from_ko',
+            'header','corner_type','fk_type','pk_type',
+            'half_volley_technique','volley_technique','lob_technique','overhead_technique','backheel_technique',
+            'diving_h_technique',
+            'distance_to_goal', 'shot_angle', 'preferred_foot_shot', 'under_pressure',
+            'shot_aerial_won','shot_first_time','shot_one_on_one','shot_open_goal','shot_follows_dribble','players_inside_area']
 
 MODELS = ['logistic', 'rf', 'mlp', 'gbt', 'nb', 'dt', 'svm']
 
@@ -106,3 +114,31 @@ class ModelTrainer:
         plt.title('Learning Curve for Model (ROC-AUC vs Iterations)')
         plt.grid(True)
         plt.show()
+    
+    def get_feature_importance(self):
+        """
+        Retrieves feature importance or coefficients for the trained model.
+
+        :param feature_names: List of feature names (optional). Matches scores to feature names if provided.
+        :return: Dictionary mapping features to scores (if feature_names provided), else list of scores.
+        """
+        if hasattr(self.model_trained, "featureImportances"):
+            # For tree-based models (e.g., RandomForest, GBT)
+            importance = self.model_trained.featureImportances.toArray()
+        elif hasattr(self.model_trained, "coefficients"):
+            # For linear models (e.g., LogisticRegression)
+            importance = self.model_trained.coefficients.toArray()
+        else:
+            raise AttributeError(f"Feature importance or coefficients are not available for the {self.model_type} model.")
+        return importance
+    
+    def feature_importance(self, feature_names=FEATURES):
+        """
+        Converts feature importance to a DataFrame.
+
+        :param feature_names: List of feature names.
+        :return: DataFrame with feature names and importance scores.
+        """
+        feature_importance = self.get_feature_importance()
+        df = pd.DataFrame(list(zip(feature_names, feature_importance)), columns=['Feature', 'Importance'])
+        return df

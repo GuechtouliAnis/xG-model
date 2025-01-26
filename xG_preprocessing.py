@@ -12,7 +12,7 @@ EVENTS_COLUMNS = ['id','period','duration','location','player_id','position', # 
                 'under_pressure','shot_aerial_won','shot_first_time','shot_one_on_one','shot_open_goal',
                 'shot_follows_dribble', # Boolean
                 'shot_statsbomb_xg','shot_outcome',# Target
-                'pass_body_part','type','shot_freeze_frame'
+                'pass_body_part','type'
                 ]
 
 ML_READY_DATA_DUMMIES = ['id','player_id','shot_location_x','shot_location_y','distance_to_goal','shot_angle','preferred_foot_shot',
