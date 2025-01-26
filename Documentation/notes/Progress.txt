@@ -53,7 +53,8 @@ IN CODE
     - xG per shot type, FK, PK, heatmap on area
     - Correlation between features
     - visualisation functions
-
+    - add match_id to lineup
+    
     - Regularization
     - Cross validation
     - Comparaison of models
