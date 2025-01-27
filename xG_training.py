@@ -13,7 +13,7 @@ FEATURES = ['other_pp','from_fk','from_ti','from_corner','from_counter','from_gk
 MODELS = ['logistic', 'rf', 'mlp', 'gbt', 'nb', 'dt', 'svm']
 
 class ModelTrainer:
-    def __init__(self, model_type, train_data, test_data, label_col="goal", features_col="features_vector", layers=None, num_trees=None, max_iter=100):
+    def __init__(self, train_data, test_data, model_type='logistic', label_col="goal", features_col="features_vector", layers=None, num_trees=None, max_iter=100):
         """
         Initializes and trains a model, and calculates evaluation metrics.
 
