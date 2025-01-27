@@ -229,7 +229,7 @@ def bool_to_int(df, columns):
         df = df.withColumn(col_name, when(col(col_name).isNull(), 0).otherwise(col(col_name).cast('int')))
     return df.fillna(0)
 
-######### Function to export shot_freeze_frame dataframe [id, shot_freeze_frame] #########
+######### Function to export shot_freeze_frame to a separate dataframe #########
 def shot_freeze_frame(df):
     """
     Exports a DataFrame with shot IDs and their corresponding freeze frames, excluding penalties.
@@ -239,7 +239,6 @@ def shot_freeze_frame(df):
     """
     return df.filter(col('shot_type')!='Penalty').select('id', 'shot_freeze_frame').dropna(subset=['shot_freeze_frame'])
 
-######### Function to export shot_freeze_frame to a separate dataframe #########
 def shot_frame_to_df(df):
     """
     Exports shot freeze frames into a separate DataFrame, processing the 'shot_freeze_frame' column.
