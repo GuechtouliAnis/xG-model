@@ -15,14 +15,17 @@ EVENTS_COLUMNS = ['id','period','duration','location','player_id','position', # 
                 'pass_body_part','type'
                 ]
 
-ML_READY_DATA_DUMMIES = ['id','player_id','shot_location_x','shot_location_y','distance_to_goal','shot_angle','preferred_foot_shot',
-                 'other_pp','from_fk','from_ti','from_corner','from_counter','from_gk','from_keeper','from_ko',
-                 'header','corner_type','fk_type','pk_type',
-                 'half_volley_technique','volley_technique','lob_technique','overhead_technique','backheel_technique',
-                 'diving_h_technique',
-                 'under_pressure','shot_aerial_won','shot_first_time','shot_one_on_one','shot_open_goal','shot_follows_dribble',
-                 'players_inside_area',
-                 'shot_statsbomb_xg','shot_outcome','goal']
+ML_READY_DATA_DUMMIES = [
+    'id','player_id',
+    'shot_location_x','shot_location_y','distance_to_goal','shot_angle', # Spatial data
+    'preferred_foot_shot', # Boolean
+    'other_pp','from_fk','from_ti','from_corner','from_counter','from_gk','from_keeper','from_ko', # Play pattern
+    'header','corner_type','fk_type','pk_type', # Shot type
+    'half_volley_technique','volley_technique','lob_technique','overhead_technique','backheel_technique', # Shot technique
+    'diving_h_technique',
+    'under_pressure','shot_aerial_won','shot_first_time','shot_one_on_one','shot_open_goal','shot_follows_dribble', # Boolean
+    'players_inside_area', # Spatial data
+    'shot_statsbomb_xg','shot_outcome','goal']
 
 ML_READY_DATA = ['id','shot_location_x','shot_location_y','distance_to_goal','shot_angle','preferred_foot_shot',
                  'shot_body_part','shot_technique','shot_type','play_pattern',
