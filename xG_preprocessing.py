@@ -7,8 +7,8 @@ import ast, math
 
 ######### Shot DataFrame necessary columns #########
 EVENTS_COLUMNS = ['id','period','duration','location','player_id','position', # Event info
-                'play_pattern','shot_body_part','shot_technique','shot_type',        # Shot info
-                'related_events', 'shot_freeze_frame', 'shot_key_pass_id', 'shot_end_location', # Complicated info
+                'play_pattern','shot_body_part','shot_technique','shot_type', # Shot info
+                'shot_freeze_frame', 'shot_key_pass_id', # Complicated info
                 'under_pressure','shot_aerial_won','shot_first_time','shot_one_on_one','shot_open_goal',
                 'shot_follows_dribble', # Boolean
                 'shot_statsbomb_xg','shot_outcome',# Target
@@ -19,7 +19,7 @@ ML_READY_DATA_DUMMIES = [
     'id','player_id',
     'shot_location_x','shot_location_y','distance_to_goal','shot_angle', # Spatial data
     'preferred_foot_shot', # Boolean
-    'other_pp','from_fk','from_ti','from_corner','from_counter','from_gk','from_keeper','from_ko', # Play pattern
+    'from_rp','from_fk','from_ti','from_corner','from_counter','from_gk','from_keeper','from_ko', # Play pattern
     'header','corner_type','fk_type','pk_type', # Shot type
     'half_volley_technique','volley_technique','lob_technique','overhead_technique','backheel_technique', # Shot technique
     'diving_h_technique',
@@ -36,7 +36,7 @@ ML_READY_DATA = ['id','shot_location_x','shot_location_y','distance_to_goal','sh
 BOOL_TO_INT_COLUMNS = ['preferred_foot_shot','under_pressure','shot_aerial_won','shot_first_time','shot_one_on_one',
                       'shot_open_goal','shot_follows_dribble','goal']
 
-FEATURES = ['other_pp','from_fk','from_ti','from_corner','from_counter','from_gk','from_keeper','from_ko',
+FEATURES = ['from_rp','from_fk','from_ti','from_corner','from_counter','from_gk','from_keeper','from_ko',
             'header','corner_type','fk_type','pk_type',
             'half_volley_technique','volley_technique','lob_technique','overhead_technique','backheel_technique',
             'diving_h_technique',
@@ -343,7 +343,8 @@ def play_pattern_dummies(df):
     .withColumn('from_counter',   when((col('play_pattern')=='From Counter'),1).otherwise(0)) \
     .withColumn('from_gk',        when((col('play_pattern')=='From Goal Kick'),1).otherwise(0)) \
     .withColumn('from_keeper',    when((col('play_pattern')=='From Keeper'),1).otherwise(0)) \
-    .withColumn('from_ko',             when((col('play_pattern')=='From Kick Off'),1).otherwise(0)).drop('play_pattern')
+    .withColumn('from_ko',             when((col('play_pattern')=='From Kick Off'),1).otherwise(0))\
+    .withColumn('from_rp',             when((col('play_pattern')=='Regular Play'),1).otherwise(0)).drop('play_pattern')
     return df
 
 def header_dummies(df):

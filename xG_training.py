@@ -3,7 +3,7 @@ from pyspark.ml.classification import LogisticRegression, RandomForestClassifier
 from pyspark.ml.classification import GBTClassifier, NaiveBayes, DecisionTreeClassifier, LinearSVC
 from pyspark.ml.evaluation import BinaryClassificationEvaluator
 import pandas as pd
-FEATURES = ['other_pp','from_fk','from_ti','from_corner','from_counter','from_gk','from_keeper','from_ko',
+FEATURES = ['from_rp','from_fk','from_ti','from_corner','from_counter','from_gk','from_keeper','from_ko',
             'header','corner_type','fk_type','pk_type',
             'half_volley_technique','volley_technique','lob_technique','overhead_technique','backheel_technique',
             'diving_h_technique',
