@@ -25,7 +25,7 @@ ML_READY_DATA_DUMMIES = [
     'diving_h_technique',
     'under_pressure','shot_aerial_won','shot_first_time','shot_one_on_one','shot_open_goal','shot_follows_dribble', # Boolean
     'players_inside_area', # Spatial data
-    'shot_statsbomb_xg','shot_outcome','goal']
+    'shot_statsbomb_xg','goal']
 
 ML_READY_DATA = ['id','shot_location_x','shot_location_y','distance_to_goal','shot_angle','preferred_foot_shot',
                  'shot_body_part','shot_technique','shot_type','play_pattern',
@@ -433,7 +433,7 @@ def preprocessing(df,spark):
     return shot_data(df)
 
 ######### Function to split the data into training and testing #########
-def pre_training(df,features=FEATURES,train_size=0.8):
+def pre_training(df,features=FEATURES,seed=42,train_size=0.8):
     """
     Prepares the dataset for training by assembling features into a vector 
     and splitting it into training and testing subsets.
@@ -445,7 +445,7 @@ def pre_training(df,features=FEATURES,train_size=0.8):
     """
     feature_assembler = VectorAssembler(inputCols=features, outputCol="features_vector")
     assembled_data = feature_assembler.transform(df)
-    train_data, test_data = assembled_data.randomSplit([train_size, 1-train_size], seed=42)
+    train_data, test_data = assembled_data.randomSplit([train_size, 1-train_size], seed=seed)
     return train_data, test_data
 
 ######### Function to extract the goal probability #########
