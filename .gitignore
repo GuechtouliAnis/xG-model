@@ -2,14 +2,10 @@ myenv
 .vscode
 todo.txt
 Data
-Datas
 *try*
 spark-warehouse
 __pycache__
 pre_*
-xG.py
 *.csv
-understat
-understats
-1
 Dataset
+Split_Data
