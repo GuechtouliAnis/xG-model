@@ -1,11 +1,10 @@
-myenv
 .vscode
 todo.txt
-Data
 *try*
-spark-warehouse
 __pycache__
 pre_*
 *.csv
+*.db
+*.xlsx
+0-notes
 Dataset
-Split_Data

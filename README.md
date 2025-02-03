@@ -11,41 +11,40 @@
     |   |-- Open Data Lineups v2.0.0.pdf
     |   |-- Open Data Matches v2.0.0.pdf
     |   |-- StatsBomb Open Data Specification v1.1.pdf
+    |-- examples
+    |-- notebooks
+    |   |-- cleaning_frames.ipynb
+    |   |-- data_splitter.ipynb
+    |   |-- statsbomb_data.ipynb
+    |   |-- xG8.ipynb
+    |-- reports
+    |-- scripts
+    |-- src
+    |   |-- __init__.py
+    |   |-- main.py
+    |   |-- SB_collector.py
+    |   |-- SB_data_plitter.py
+    |   |-- xG_evaluation.py
+    |   |-- xG_models.py
+    |   |-- xG_preprocessing.py
+    |-- tests
     |-- .gitignore
-    |-- read_data.ipynb
+    |-- CHANGELOG.md
+    |-- LICENSE
     |-- README.md
     |-- requirements.txt
-    |-- SB_Data.ipynb
 ```
 
 
 ## Description
 
-The <a href='/Documentation/'>`Documentation`</a> folder contains a set of files that explain the features found in the dataset. These documents provide detailed information about the data structure and the meaning of various fields in the dataset. The <a href='/Documentation/'>`Documentation`</a> files were obtained from the <a href='https://github.com/statsbomb/statsbombpy'>statsbombpy GitHub repository</a>, specifically from the <a href='https://github.com/statsbomb/statsbombpy/tree/master/doc'>`docs`</a> directory.
-
-- The <a href='SB_Data.ipynb'>`SB_Data.ipynb`</a> file contains the code to read the data from the StatsBomb dataset.
-- The <a href='read_data.ipynb'>`read_data.ipynb`</a> file contains code to read the data from a local Hadoop server into Spark through PySpark.
-- The <a href='requirements.txt'>`requirements.txt`</a> file lists the libraries required to run the code.
-
-All the data used in this project is freely available on the <a href='https://statsbomb.com/what-we-do/hub/free-data/'>StatsBomb website</a>.
-
 ## Feature Selection
 
-Given the large number of columns in each table, not all data is relevant for building an xG model. Therefore, careful feature selection is crucial to ensure that only the most pertinent data is used.
-
 ### Dropped Tables
-
-The following tables have been excluded because they contain data not useful for the xG model:
-
-- `matches`
-- `lineups`
-- `competitions`
 
 ### Tables Used
 
 #### Events
-
-The `events` table contains data about each event during football matches for the data published by StatsBomb. It is important to note that not every event has detailed information about the positions of all players during the event. The data is limited to the *360 Data*, which is freely available for three competitions, as detailed below.
 
 #### Frames
 
