@@ -93,10 +93,6 @@ class ModelEvaluation:
         tp, tn, fp, fn = self.metrics.values()
         return tp / (tp + fn) if (tp + fn) > 0 else 0.0
     
-    def sensitivity(self):
-        """Calculates sensitivity (classification only)."""
-        return self.recall()
-    
     def specificity(self):
         """Calculates specificity (classification only)."""
         if self.model_type != "classification":
@@ -133,7 +129,6 @@ class ModelEvaluation:
                 'Accuracy': round(self.accuracy() * 100, 2),
                 'Precision': round(self.precision() * 100, 2),
                 'Recall': round(self.recall() * 100, 2),
-                'Sensitivity': round(self.sensitivity() * 100, 2),
                 'Specificity': round(self.specificity() * 100, 2),
                 'F1': round(self.f1() * 100, 2),
                 'FPR': round(self.fpr() * 100, 2),

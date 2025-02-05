@@ -2,9 +2,9 @@
 todo.txt
 *try*
 __pycache__
-pre_*
 *.csv
 *.db
 *.xlsx
 0-notes
 Dataset
+myenv

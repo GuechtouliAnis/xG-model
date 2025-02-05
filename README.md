@@ -11,25 +11,17 @@
     |   |-- Open Data Lineups v2.0.0.pdf
     |   |-- Open Data Matches v2.0.0.pdf
     |   |-- StatsBomb Open Data Specification v1.1.pdf
-    |-- examples
+    |-- modules
+    |   |-- xG_evaluation.py
+    |   |-- xG_models.py
+    |   |-- xG_preprocessing.py
     |-- notebooks
     |   |-- cleaning_frames.ipynb
     |   |-- data_splitter.ipynb
     |   |-- statsbomb_data.ipynb
+    |   |-- xG.ipynb
     |   |-- xG8.ipynb
-    |-- reports
-    |-- scripts
-    |-- src
-    |   |-- __init__.py
-    |   |-- main.py
-    |   |-- SB_collector.py
-    |   |-- SB_data_plitter.py
-    |   |-- xG_evaluation.py
-    |   |-- xG_models.py
-    |   |-- xG_preprocessing.py
-    |-- tests
     |-- .gitignore
-    |-- CHANGELOG.md
     |-- LICENSE
     |-- README.md
     |-- requirements.txt
