@@ -41,7 +41,7 @@ class Preprocessing:
             T.IntegerType())
 
         if self.full_pp:
-            self.df == self.preprocess()
+            self.df = self.preprocess()
 
     def __getattr__(self, attr):
         return getattr(self.df, attr)
@@ -92,7 +92,7 @@ class Preprocessing:
                         .filter(F.col('body_part').isin('Right Foot', 'Left Foot'))
 
         shot_bp = self.df.filter(self.df.type == 'Shot')\
-            .select('player_id', F.col('pass_body_part').alias('body_part'))\
+            .select('player_id', F.col('shot_body_part').alias('body_part'))\
                 .filter(F.col('body_part').isin('Right Foot', 'Left Foot'))
 
         bp = pass_bp.union(shot_bp)
