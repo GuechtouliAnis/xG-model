@@ -4,7 +4,17 @@ from pyspark.sql import DataFrame
 import numpy as np
 import pandas as pd
 
-FEATURES = []
+FEATURES = ['id','player_id',
+    'shot_location_x','shot_location_y','distance_to_goal','shot_angle', # Spatial data
+    'preferred_foot_shot', # Boolean
+    'from_rp','from_fk','from_ti','from_corner','from_counter','from_gk','from_keeper','from_ko', # Play pattern
+    'header','corner_type','fk_type','pk_type', # Shot type
+    'half_volley_technique','volley_technique','lob_technique','overhead_technique','backheel_technique', # Shot technique
+    'diving_h_technique',
+    'under_pressure','shot_aerial_won','shot_first_time','shot_one_on_one','shot_open_goal','shot_follows_dribble', # Boolean
+    'players_inside_area', # Spatial data
+    'shot_statsbomb_xg','goal']
+
 EVENTS = [
     'id','period','duration','location','player_id','position', # Event info
     'play_pattern','shot_body_part','shot_technique','shot_type', # Shot info
@@ -14,22 +24,60 @@ EVENTS = [
     'shot_statsbomb_xg','shot_outcome',# Target
     'pass_body_part','type']
 
+DUMMIES_dict = {
+    'play_pattern' : {
+        'Other': 'other_pp',
+        'From Free Kick': 'from_fk',
+        'From Throw In': 'from_ti',
+        'From Corner': 'from_corner',
+        'From Counter': 'from_counter',
+        'From Goal Kick': 'from_gk',
+        'From Keeper': 'from_keeper',
+        'From Kick Off': 'from_ko',
+        'Regular Play': 'from_rp'},
+
+    'shot_type': {
+        'Corner' : 'corner_type',
+        'Free Kick' : 'fk_type',
+        'Penalty' : 'pk_type'},
+
+    'shot_technique' : {
+        'Half Volley': 'half_volley_technique',
+        'Volley': 'volley_technique',
+        'Lob': 'lob_technique',
+        'Overhead Kick': 'overhead_technique',
+        'Backheel': 'backheel_technique',
+        'Diving Header': 'diving_h_technique'}
+    }
+
+BOOL_TO_INT = ['preferred_foot_shot','under_pressure','shot_aerial_won',
+                       'shot_first_time','shot_one_on_one',
+                      'shot_open_goal','shot_follows_dribble','goal']
+
 class Preprocessing:
     def __init__(self,
                  spark,
                  df : DataFrame,
-                 EVENTS=EVENTS,
-                 full_pp=True,
-                 GOAL_X=120,
-                 GOAL_Y1=36,
-                 GOAL_Y2=44):
+                 EVENTS = EVENTS,
+                 full_pp = True,
+                 dummies = True,
+                 DUMMIES_dict = DUMMIES_dict,
+                 BOOL_TO_INT = BOOL_TO_INT,
+                 FEATURES = FEATURES,
+                 GOAL_X = 120,
+                 GOAL_Y1 = 36,
+                 GOAL_Y2 = 44):
 
         self.df = df.filter((df.type =='Shot') | (df.type=='Pass')).select(EVENTS)
+        self.spark = spark
+        self.dummies = dummies
+        self.DUMMIES_dict = DUMMIES_dict
         self.full_pp = full_pp
         self.GOAL_X = GOAL_X
         self.GOAL_Y1 = GOAL_Y1
         self.GOAL_Y2 = GOAL_Y2
-        self.spark = spark
+        self.BOOL_TO_INT = BOOL_TO_INT
+        self.FEATURES = FEATURES
 
         self.shot_angle_udf = F.udf(
             lambda shot_x, shot_y: Preprocessing.shot_angle(shot_x,shot_y,GOAL_X,GOAL_Y1,GOAL_Y2),
@@ -41,7 +89,7 @@ class Preprocessing:
             T.IntegerType())
 
         if self.full_pp:
-            self.df = self.preprocess()
+            self.preprocess()
 
     def __getattr__(self, attr):
         return getattr(self.df, attr)
@@ -197,9 +245,25 @@ class Preprocessing:
         self.df = self.df.join(frames.select('Shot_id','players_inside_area'),
                         self.df.id == frames.Shot_id, how='left').drop('Shot_id')
 
+    def create_dummies(self):
+        for col_name, mapping in self.DUMMIES_dict.items():
+            for value, dummy_col in mapping.items():
+                self.df = self.df.withColumn(dummy_col, F.when(F.col(col_name) == value, 1).otherwise(0))
+            self.df = self.df.drop(col_name)
+
+        self.df = self.df.withColumn('goal', F.col('shot_outcome') == 'Goal')\
+            .withColumn('header', F.when((F.col('shot_body_part')=='Head'),1).otherwise(0)).drop('shot_body_part')
+
+    def bool_to_int(self):
+        for col_name in self.BOOL_TO_INT:
+            self.df = self.df.withColumn(col_name, F.when(F.col(col_name).isNull(), 0).otherwise(F.col(col_name).cast('int')))
+        return self.df.fillna(0)
+
     def preprocess(self):
         self.spatial_data()
         self.shot_preferred_foot()
-        self.df = self.df.withColumn('goal', F.col('shot_outcome') == 'Goal')
         self.number_of_players()
-        return self.df
+        if self.dummies:
+            self.create_dummies()
+            self.bool_to_int()
+        self.df = self.df.filter(self.df.type=='Shot').select(self.FEATURES)
