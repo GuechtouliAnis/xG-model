@@ -13,16 +13,30 @@ FEATURES = ['id','player_id',
     'diving_h_technique',
     'under_pressure','shot_aerial_won','shot_first_time','shot_one_on_one','shot_open_goal','shot_follows_dribble', # Boolean
     'players_inside_area', # Spatial data
+    
+    'assist', 'pass_height', 'pass_length', 'pass_angle',
+    'pass_aerial_won', 'pass_cross', 'pass_cut_back', 'pass_switch', 'pass_through_ball',
+    'pass_inswinging', 'pass_outswinging', 'pass_straight', 'pass_no_touch',
+
     'shot_statsbomb_xg','goal']
 
 EVENTS = [
-    'id','period','duration','location','player_id','position', # Event info
+    'id', 'type', 'period','duration','location','player_id','position', # Event info
     'play_pattern','shot_body_part','shot_technique','shot_type', # Shot info
-    'shot_freeze_frame', 'shot_key_pass_id', # Complicated info
+    'shot_freeze_frame', # Complicated info
     'under_pressure','shot_aerial_won','shot_first_time','shot_one_on_one',
     'shot_open_goal', 'shot_follows_dribble', # Boolean
     'shot_statsbomb_xg','shot_outcome',# Target
-    'pass_body_part','type']
+    'pass_body_part',
+    # Pass Data
+    'pass_assisted_shot_id', 'pass_height', 'pass_length', 'pass_angle',
+    'pass_aerial_won', 'pass_cross', 'pass_cut_back', 'pass_switch', 'pass_through_ball',
+    'pass_inswinging', 'pass_outswinging', 'pass_straight', 'pass_no_touch']
+
+PASS_EVENTS = [
+    'pass_assisted_shot_id', 'pass_height', 'pass_length', 'pass_angle',
+    'pass_aerial_won', 'pass_cross', 'pass_cut_back', 'pass_switch', 'pass_through_ball',
+    'pass_inswinging', 'pass_outswinging', 'pass_straight', 'pass_no_touch']
 
 DUMMIES_dict = {
     'play_pattern' : {
@@ -51,8 +65,10 @@ DUMMIES_dict = {
     }
 
 BOOL_TO_INT = ['preferred_foot_shot','under_pressure','shot_aerial_won',
-                       'shot_first_time','shot_one_on_one',
-                      'shot_open_goal','shot_follows_dribble','goal']
+               'shot_first_time','shot_one_on_one',
+               'shot_open_goal','shot_follows_dribble','goal',
+               'pass_aerial_won', 'pass_cross', 'pass_cut_back', 'pass_switch', 'pass_through_ball',
+               'pass_inswinging', 'pass_outswinging', 'pass_straight', 'pass_no_touch']
 
 class Preprocessing:
     def __init__(self,
@@ -61,6 +77,8 @@ class Preprocessing:
                  EVENTS = EVENTS,
                  full_pp = True,
                  dummies = True,
+                 pass_features = True,
+                 pass_events = PASS_EVENTS,
                  DUMMIES_dict = DUMMIES_dict,
                  BOOL_TO_INT = BOOL_TO_INT,
                  FEATURES = FEATURES,
@@ -68,7 +86,7 @@ class Preprocessing:
                  GOAL_Y1 = 36,
                  GOAL_Y2 = 44):
 
-        self.df = df.filter((df.type =='Shot') | (df.type=='Pass')).select(EVENTS)
+        self.df = df.filter((df.type =='Shot') | (df.pass_assisted_shot_id.isNotNull())).select(EVENTS)
         self.spark = spark
         self.dummies = dummies
         self.DUMMIES_dict = DUMMIES_dict
@@ -78,6 +96,9 @@ class Preprocessing:
         self.GOAL_Y2 = GOAL_Y2
         self.BOOL_TO_INT = BOOL_TO_INT
         self.FEATURES = FEATURES
+
+        self.pass_features = pass_features
+        self.pass_events = pass_events
 
         self.shot_angle_udf = F.udf(
             lambda shot_x, shot_y: Preprocessing.shot_angle(shot_x,shot_y,GOAL_X,GOAL_Y1,GOAL_Y2),
@@ -95,7 +116,7 @@ class Preprocessing:
         return getattr(self.df, attr)
 
     @staticmethod
-    def shot_angle(shot_x, shot_y,GOAL_X,GOAL_Y1,GOAL_Y2):
+    def shot_angle(shot_x, shot_y, GOAL_X, GOAL_Y1, GOAL_Y2):
         import math
         u_x = GOAL_X - shot_x
         u_y = GOAL_Y1 - shot_y
@@ -185,7 +206,7 @@ class Preprocessing:
     def shot_freeze_frame(self):
         return self.df.filter(
             F.col('shot_type')!='Penalty').select(
-            'id', 'shot_freeze_frame').dropna(subset=['shot_freeze_frame'])
+                'id', 'shot_freeze_frame').dropna(subset=['shot_freeze_frame'])
 
     def shot_frame_df(self):
         import ast
@@ -257,12 +278,35 @@ class Preprocessing:
     def bool_to_int(self):
         for col_name in self.BOOL_TO_INT:
             self.df = self.df.withColumn(col_name, F.when(F.col(col_name).isNull(), 0).otherwise(F.col(col_name).cast('int')))
-        return self.df.fillna(0)
+
+    def get_assist_data(self):
+        df_p = self.df.select(self.pass_events)
+        df_p = df_p.withColumn('pass_height',F.when(F.col('pass_height')=='Ground Pass', 0)\
+            .when(F.col('pass_height')=='Low Pass', 1).otherwise(2))
+
+        df_p = df_p.withColumnRenamed('under_pressure','pass_under_pressure')
+
+        for c in self.df.columns:
+            if c in df_p.columns:
+                self.df = self.df.drop(c)
+
+        self.df = self.df.join(df_p, self.df.id == df_p.pass_assisted_shot_id, how='left')
+        self.df = self.df.withColumn('assist',
+                                     F.when(F.col('pass_assisted_shot_id').isNotNull(), 1).otherwise(0))\
+                         .withColumn('pass_height',
+                                     F.when(F.col('pass_height').isNull(), -1).otherwise(F.col('pass_height')))\
+                         .withColumn('pass_angle',
+                                     F.when(F.col('pass_angle').isNull(),   4).otherwise(F.col('pass_angle')))\
+                         .withColumn('pass_length',
+                                     F.when(F.col('pass_length').isNull(),   0).otherwise(F.col('pass_length')))\
+                         .drop('pass_assisted_shot_id')
 
     def preprocess(self):
         self.spatial_data()
         self.shot_preferred_foot()
-        self.number_of_players()
+        self.number_of_players()    
+        if self.pass_features:
+            self.get_assist_data()
         if self.dummies:
             self.create_dummies()
             self.bool_to_int()
