@@ -29,7 +29,9 @@ class Preprocessing:
         self.feautres = feautres
         self.pass_events = pass_events
 
-        self.df = df.filter((df.type == 'Shot') | (df.pass_assisted_shot_id.isNotNull())).select(self.events)
+        self.df = df.filter(((df.type == 'Shot') | (df.pass_assisted_shot_id.isNotNull()))
+                            & (df.season == '2015/2016'))\
+                    .select(self.events)
 
         self.shot_angle_udf = F.udf(
             lambda shot_x, shot_y: Preprocessing.shot_angle(
