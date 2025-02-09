@@ -161,8 +161,9 @@ class Preprocessing:
                         .filter(F.col('body_part').isin('Right Foot', 'Left Foot'))
 
         shot_bp = self.df.filter(self.df.type == 'Shot')\
-            .select('player_id', F.col('shot_body_part').alias('body_part'))\
-                .filter(F.col('body_part').isin('Right Foot', 'Left Foot'))
+            .select('player_id',
+                    F.col('shot_body_part').alias('body_part'))\
+                        .filter(F.col('body_part').isin('Right Foot', 'Left Foot'))
 
         bp = pass_bp.union(shot_bp)
 
@@ -193,8 +194,9 @@ class Preprocessing:
 
     def shot_preferred_foot(self):
         df = self.preferred_foot()
-        self.df = self.df.join(df, self.df.player_id == df.player_id, how='left')\
-            .drop(df.player_id)
+        df = df.withColumnRenamed('player_id','f_player_id')
+        self.df = self.df.join(df, self.df.player_id == df.f_player_id, how='left')\
+            .drop('f_player_id')
 
         self.df = self.df.withColumn(
             'preferred_foot_shot',
@@ -264,8 +266,11 @@ class Preprocessing:
                                  F.col('shot_location_y')))
 
         self.df = self.df.join(frames.select('Shot_id','players_inside_area'),
-                        self.df.id == frames.Shot_id, how='left').drop('Shot_id')
-
+                        self.df.id == frames.Shot_id, how='left').drop('Shot_id')\
+                            .withColumn('players_inside_area',
+                                        F.when(F.col('shot_type')=='Penalty',1).otherwise(
+                                            F.col('players_inside_area')))
+        
     def create_dummies(self):
         for col_name, mapping in self.DUMMIES_dict.items():
             for value, dummy_col in mapping.items():
