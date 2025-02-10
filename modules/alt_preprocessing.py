@@ -7,9 +7,11 @@ from .xG_constants import *
 
 # TO ADD
 # - Penalty / FK Logic (if Header!)
+# - REVIEW PLAYERS INSIDE AREA FUNCTION
 # - Try except (column does not exist)
 # - Shot angle math
 # - Remove UDFs
+# - Add pre-training
 # - Add comments
 # - Docstring
 
@@ -17,6 +19,7 @@ class Preprocessing:
     def __init__(self,
                  spark,
                  df : DataFrame,
+                 season : str | None = '2015/2016',
                  events : list[str] = EVENTS,
                  pass_events : list[str] = PASS_EVENTS,
                  DUMMIES_dict : dict[str] = DUMMIES,
@@ -27,6 +30,7 @@ class Preprocessing:
                  GOAL_Y1 : float = 36,
                  GOAL_Y2 : float = 44):
 
+        self.df = df
         self.events = events
         self.spark = spark
         self.DUMMIES_dict = DUMMIES_dict
@@ -37,10 +41,13 @@ class Preprocessing:
         self.BOOL_TO_INT = BOOL_TO_INT
         self.features = features
         self.pass_events = pass_events
-
-        self.df = df.filter(((df.type == 'Shot') | (df.pass_assisted_shot_id.isNotNull()))
-                            & (df.season == '2015/2016'))\
-                    .select(self.events)
+        self.season = season
+        
+        if self.season is not None:
+            self.df = self.df.filter(self.df.season == self.season)
+        
+        self.df = self.df.filter((df.type == 'Shot') | (df.pass_assisted_shot_id.isNotNull()))\
+                         .select(self.events)
 
         self.shot_angle_udf = F.udf(
             lambda shot_x, shot_y: Preprocessing.shot_angle(
@@ -55,8 +62,8 @@ class Preprocessing:
         if self.full_pp:
             self.preprocess()
 
-    def __getattr__(self, attr) -> DataFrame:
-        return getattr(self.df, attr)
+    # def __getattr__(self, attr) -> DataFrame:
+    #     return getattr(self.df, attr)
 
     @staticmethod
     def shot_angle(shot_x : float, shot_y : float,
@@ -202,7 +209,7 @@ class Preprocessing:
                                       GOAL_X, GOAL_Y1)
             
             return np.isclose(area_abc,
-                              (area_abp + area_bcp + area_cap))
+                              (area_abp + area_bcp + area_cap),rtol=1e-10)
 
         count = 0
         for coord in coordinates:
