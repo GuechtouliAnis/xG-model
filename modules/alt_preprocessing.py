@@ -1,24 +1,23 @@
 import pyspark.sql.functions as F
 import pyspark.sql.types as T
-from pyspark.sql import DataFrame
+from pyspark.sql import DataFrame, SparkSession
 from pyspark.ml.feature import VectorAssembler
 import numpy as np
 import pandas as pd
 from .xG_constants import *
 
 # TO ADD
-# - Penalty / FK Logic (if Header!)
-# - REVIEW PLAYERS INSIDE AREA FUNCTION
 # - Try except (column does not exist)
 # - Shot angle math
 # - Remove UDFs
-# - Add pre-training
 # - Add comments
 # - Docstring
+# - mean, mode, median, std, var
+# - PCA
 
 class Preprocessing:
     def __init__(self,
-                 spark,
+                 spark : SparkSession,
                  df : DataFrame,
                  season : str | None = SEASON,
                  events : list[str] = EVENTS,
@@ -299,7 +298,7 @@ class Preprocessing:
                                      F.when(F.col('pass_length').isNull(),   0)\
                                       .otherwise(F.col('pass_length')))\
                          .drop('pass_assisted_shot_id')
-
+                         
     def preprocess(self):
         self.spatial_data()
         self.shot_preferred_foot()
@@ -308,6 +307,7 @@ class Preprocessing:
         self.create_dummies()
         self.bool_to_int()
         self.df = self.df.filter(self.df.type=='Shot').select(self.variables)
+        self.df = EDASparkDataFrame(self.df)
 
     def data_split(self, train_size : float = 0.8, seed : int = 42) -> tuple[DataFrame,DataFrame]:
         feature_assembler = VectorAssembler(inputCols=self.features,
@@ -316,3 +316,110 @@ class Preprocessing:
         train_data, test_data = assembled_data.randomSplit([train_size, 1-train_size], seed=seed)
 
         return train_data, test_data
+
+class EDASparkColumn:
+    """
+    Wraps a Spark DataFrame column to provide common descriptive statistics.
+    """
+    def __init__(self, df: DataFrame, col_name: str):
+        self.df = df
+        self.col_name = col_name
+    
+    # add try if col isn't numerical    
+    def mean(self):
+        """Return the mean of the column."""
+        result = self.df.select(F.mean(self.col_name).alias("mean")).collect()
+        return result[0]["mean"]
+
+    def median(self):
+        """Return the median of the column using approxQuantile."""
+        # approxQuantile returns a list; 0.001 is the relative error
+        return self.df.approxQuantile(self.col_name, [0.5], 0.001)[0]
+
+    def std(self):
+        """Return the standard deviation of the column."""
+        result = self.df.select(F.stddev(self.col_name).alias("std")).collect()
+        return result[0]["std"]
+
+    def var(self):
+        """Return the variance of the column."""
+        result = self.df.select(F.variance(self.col_name).alias("var")).collect()
+        return result[0]["var"]
+
+    def mode(self):
+        """Return the mode (most frequent value) of the column."""
+        # Group by the column, count, and take the value with highest count.
+        mode_row = (self.df
+                    .groupBy(self.col_name)
+                    .count()
+                    .orderBy("count", ascending=False)
+                    .first())
+        return mode_row[0] if mode_row is not None else None
+
+    def min(self):
+        """Return the minimum value in the column."""
+        result = self.df.select(F.min(self.col_name).alias("min")).collect()
+        return result[0]["min"]
+
+    def max(self):
+        """Return the maximum value in the column."""
+        result = self.df.select(F.max(self.col_name).alias("max")).collect()
+        return result[0]["max"]
+
+    def range(self):
+        """Return the range (max - min) of the column."""
+        return self.max() - self.min()
+
+    def count(self):
+        """Return the total count of values in the column."""
+        result = self.df.select(F.count(self.col_name).alias("count")).collect()
+        return result[0]["count"]
+
+    def count_nulls(self):
+        """Return the count of null values in the column."""
+        return self.df.filter(F.col(self.col_name).isNull()).count()
+
+    def count_unique(self):
+        """Return the number of distinct values in the column."""
+        return self.df.select(self.col_name).distinct().count()
+
+    def __repr__(self):
+        return f"<EDASparkColumn: {self.col_name}>"
+
+class EDASparkDataFrame:
+    """
+    Wraps a Spark DataFrame to allow attribute access for columns.
+    
+    For example, if the underlying DataFrame has a column 'age', then
+    eda_df.age will return an EDASparkColumn instance for 'age', so that you can write:
+    
+        eda_df.age.mean()
+    """
+    def __init__(self, df: DataFrame):
+        self._df = df
+
+    def __getattr__(self, attr):
+        # If attr is one of the columns, return an EDASparkColumn for that column.
+        if attr in self._df.columns:
+            return EDASparkColumn(self._df, attr)
+        # Otherwise, try to get the attribute from the underlying DataFrame.
+        attr_val = getattr(self._df, attr)
+        # If the attribute is callable (like .filter(), .select(), etc.),
+        # we wrap it so that if it returns a DataFrame, we wrap that too.
+        if callable(attr_val):
+            def wrapper(*args, **kwargs):
+                result = attr_val(*args, **kwargs)
+                if isinstance(result, DataFrame):
+                    return EDASparkDataFrame(result)
+                return result
+            return wrapper
+        return attr_val
+
+    def __repr__(self):
+        return repr(self._df)
+
+    def toDF(self):
+        """
+        Return the underlying Spark DataFrame.
+        """
+        return self._df
