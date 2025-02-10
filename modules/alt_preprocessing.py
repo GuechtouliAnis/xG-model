@@ -2,21 +2,30 @@ import pyspark.sql.functions as F
 import pyspark.sql.types as T
 from pyspark.sql import DataFrame
 import numpy as np
+import pandas as pd
 from .xG_constants import *
+
+# TO ADD
+# - Penalty / FK Logic (if Header!)
+# - Try except (column does not exist)
+# - Shot angle math
+# - Remove UDFs
+# - Add comments
+# - Docstring
 
 class Preprocessing:
     def __init__(self,
                  spark,
                  df : DataFrame,
-                 events = EVENTS,
-                 pass_events = PASS_EVENTS,
-                 DUMMIES_dict = DUMMIES,
-                 BOOL_TO_INT = BOOL_TO_INT,
-                 feautres = FEATURES,
-                 full_pp = True,
-                 GOAL_X = 120,
-                 GOAL_Y1 = 36,
-                 GOAL_Y2 = 44):
+                 events : list[str] = EVENTS,
+                 pass_events : list[str] = PASS_EVENTS,
+                 DUMMIES_dict : dict[str] = DUMMIES,
+                 BOOL_TO_INT : list[str] = BOOL_TO_INT,
+                 features : list[str] = FEATURES,
+                 full_pp : bool = True,
+                 GOAL_X : float = 120,
+                 GOAL_Y1 : float = 36,
+                 GOAL_Y2 : float = 44):
 
         self.events = events
         self.spark = spark
@@ -26,7 +35,7 @@ class Preprocessing:
         self.GOAL_Y1 = GOAL_Y1
         self.GOAL_Y2 = GOAL_Y2
         self.BOOL_TO_INT = BOOL_TO_INT
-        self.feautres = feautres
+        self.features = features
         self.pass_events = pass_events
 
         self.df = df.filter(((df.type == 'Shot') | (df.pass_assisted_shot_id.isNotNull()))
@@ -46,11 +55,13 @@ class Preprocessing:
         if self.full_pp:
             self.preprocess()
 
-    def __getattr__(self, attr):
+    def __getattr__(self, attr) -> DataFrame:
         return getattr(self.df, attr)
 
     @staticmethod
-    def shot_angle(shot_x, shot_y, GOAL_X, GOAL_Y1, GOAL_Y2):
+    def shot_angle(shot_x : float, shot_y : float,
+                   GOAL_X : float, GOAL_Y1 : float,
+                   GOAL_Y2 : float) -> float:
         import math
         u_x = GOAL_X - shot_x
         u_y = GOAL_Y1 - shot_y
@@ -87,7 +98,7 @@ class Preprocessing:
         self.distance_to_goal()
         self.get_shot_angle()
 
-    def preferred_foot(self):
+    def preferred_foot(self) -> DataFrame:
         pass_bp = self.df.filter(self.df.type == 'Pass')\
                          .select('player_id', F.col('pass_body_part').alias('body_part'))\
                          .filter(F.col('body_part').isin('Right Foot', 'Left Foot'))
@@ -131,15 +142,14 @@ class Preprocessing:
                                             (F.col('shot_body_part').isin('Right Foot', 'Left Foot')), True)\
                                       .otherwise(F.col('preferred_foot') == F.col('shot_body_part')))
 
-    def shot_freeze_frame(self):
+    def shot_freeze_frame(self) -> DataFrame:
         
         return self.df.filter(F.col('shot_type')!='Penalty')\
                       .select('id', 'shot_freeze_frame')\
                       .dropna(subset=['shot_freeze_frame'])
 
-    def shot_frame_df(self):
+    def shot_frame_df(self) -> pd.DataFrame:
         import ast
-        import pandas as pd
         
         df = self.shot_freeze_frame()
         processed_rows = []
@@ -160,13 +170,21 @@ class Preprocessing:
         return pd.DataFrame(processed_rows)
 
     @staticmethod
-    def check_point_inside(coordinates, shot_x, shot_y, GOAL_X = 120, GOAL_Y1 = 36, GOAL_Y2 = 44):
+    def check_point_inside(coordinates : list[float],
+                           shot_x : float, shot_y : float,
+                           GOAL_X : float = 120, GOAL_Y1 : float = 36,
+                           GOAL_Y2 : float = 44) -> int:
         
-        def calculate_area(x1,y1,x2,y2,x3,y3):
+        def calculate_area(x1 : float, y1 : float,
+                           x2 : float, y2 : float,
+                           x3 : float, y3 : float) -> float:
         
             return abs(x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2)) / 2.0
 
-        def point_inside_triangle(player_x, player_y, shot_x, shot_y, GOAL_X, GOAL_Y1, GOAL_Y2):
+        def point_inside_triangle(player_x : float, player_y : float,
+                                  shot_x : float, shot_y : float,
+                                  GOAL_X : float, GOAL_Y1 : float,
+                                  GOAL_Y2 : float) -> bool:
             area_abc = calculate_area(shot_x, shot_y,
                                       GOAL_X, GOAL_Y1,
                                       GOAL_X, GOAL_Y2)
@@ -185,7 +203,7 @@ class Preprocessing:
             
             return np.isclose(area_abc,
                               (area_abp + area_bcp + area_cap))
-        
+
         count = 0
         for coord in coordinates:
             player_x, player_y = coord
@@ -253,7 +271,7 @@ class Preprocessing:
                 self.df = self.df.drop(col)
 
         self.df = self.df.join(df_p, self.df.id == df_p.pass_assisted_shot_id, how='left')
-        
+
         self.df = self.df.withColumn('assist',
                                      F.when(F.col('pass_assisted_shot_id').isNotNull(), 1)\
                                       .otherwise(0))\
@@ -275,4 +293,4 @@ class Preprocessing:
         self.get_assist_data()
         self.create_dummies()
         self.bool_to_int()
-        self.df = self.df.filter(self.df.type=='Shot').select(self.feautres)
+        self.df = self.df.filter(self.df.type=='Shot').select(self.features)
