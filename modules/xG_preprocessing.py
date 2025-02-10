@@ -1,473 +1,425 @@
-from pyspark.sql.functions import col, regexp_extract,round, sqrt, pow, lit, udf, when, format_number
+import pyspark.sql.functions as F
+import pyspark.sql.types as T
+from pyspark.sql import DataFrame, SparkSession
 from pyspark.ml.feature import VectorAssembler
-from pyspark.sql.types import IntegerType, FloatType, DoubleType
-import pandas as pd
 import numpy as np
-import ast, math
+import pandas as pd
+from .xG_constants import *
 
-######### Shot DataFrame necessary columns #########
-EVENTS_COLUMNS = ['id','period','duration','location','player_id','position', # Event info
-                'play_pattern','shot_body_part','shot_technique','shot_type', # Shot info
-                'shot_freeze_frame', 'shot_key_pass_id', # Complicated info
-                'under_pressure','shot_aerial_won','shot_first_time','shot_one_on_one','shot_open_goal',
-                'shot_follows_dribble', # Boolean
-                'shot_statsbomb_xg','shot_outcome',# Target
-                'pass_body_part','type'
-                ]
+# TO ADD
+# - Try except (column does not exist)
+# - Shot angle math
+# - Remove UDFs
+# - Add comments
+# - Docstring
+# - mean, mode, median, std, var
+# - PCA
 
-ML_READY_DATA_DUMMIES = [
-    'id','player_id',
-    'shot_location_x','shot_location_y','distance_to_goal','shot_angle', # Spatial data
-    'preferred_foot_shot', # Boolean
-    'from_rp','from_fk','from_ti','from_corner','from_counter','from_gk','from_keeper','from_ko', # Play pattern
-    'header','corner_type','fk_type','pk_type', # Shot type
-    'half_volley_technique','volley_technique','lob_technique','overhead_technique','backheel_technique', # Shot technique
-    'diving_h_technique',
-    'under_pressure','shot_aerial_won','shot_first_time','shot_one_on_one','shot_open_goal','shot_follows_dribble', # Boolean
-    'players_inside_area', # Spatial data
-    'shot_statsbomb_xg','goal']
+class Preprocessing:
+    def __init__(self,
+                 spark : SparkSession,
+                 df : DataFrame,
+                 season : str | None = SEASON,
+                 events : list[str] = EVENTS,
+                 DUMMIES_dict : dict[str] = DUMMIES,
+                 BOOL_TO_INT : list[str] = BOOL_TO_INT,
+                 variables : list[str] = VARIABLES,
+                 full_pp : bool = True,
+                 features : list[str] = FEATURES,
+                 GOAL_X : float = 120,
+                 GOAL_Y1 : float = 36,
+                 GOAL_Y2 : float = 44):
 
-ML_READY_DATA = ['id','shot_location_x','shot_location_y','distance_to_goal','shot_angle','preferred_foot_shot',
-                 'shot_body_part','shot_technique','shot_type','play_pattern',
-                 'under_pressure','shot_aerial_won','shot_first_time','shot_one_on_one','shot_open_goal','shot_follows_dribble',
-                 'players_inside_area',
-                 'shot_statsbomb_xg','shot_outcome','goal']
+        self.df = df
+        self.events = events
+        self.spark = spark
+        self.DUMMIES_dict = DUMMIES_dict
+        self.full_pp = full_pp
+        self.GOAL_X = GOAL_X
+        self.GOAL_Y1 = GOAL_Y1
+        self.GOAL_Y2 = GOAL_Y2
+        self.BOOL_TO_INT = BOOL_TO_INT
+        self.variables = variables
+        self.season = season
+        self.features = features
+        
+        if self.season is not None:
+            self.df = self.df.filter(self.df.season == self.season)
+        
+        self.df = self.df.filter((df.type == 'Shot') | (df.pass_assisted_shot_id.isNotNull()))\
+                         .select(self.events)
 
-BOOL_TO_INT_COLUMNS = ['preferred_foot_shot','under_pressure','shot_aerial_won','shot_first_time','shot_one_on_one',
-                      'shot_open_goal','shot_follows_dribble','goal']
+        self.shot_angle_udf = F.udf(
+            lambda shot_x, shot_y: Preprocessing.shot_angle(
+                shot_x, shot_y, GOAL_X, GOAL_Y1, GOAL_Y2),
+            T.FloatType())
 
-FEATURES = ['from_rp','from_fk','from_ti','from_corner','from_counter','from_gk','from_keeper','from_ko',
-            'header','corner_type','fk_type','pk_type',
-            'half_volley_technique','volley_technique','lob_technique','overhead_technique','backheel_technique',
-            'diving_h_technique',
-            'distance_to_goal', 'shot_angle', 'preferred_foot_shot', 'under_pressure',
-            'shot_aerial_won','shot_first_time','shot_one_on_one','shot_open_goal','shot_follows_dribble','players_inside_area']
+        self.check_point_udf = F.udf(
+            lambda coords, shot_x, shot_y: Preprocessing.check_point_inside(
+                coords, shot_x, shot_y, GOAL_X, GOAL_Y1, GOAL_Y2),
+            T.IntegerType())
 
-goal_X = 120
-goal_Y1, goal_Y2 = 36, 44
+        if self.full_pp:
+            self.preprocess()
 
-######### Function to export shot data #########
-def shot_data(df):
-    df = df.filter(df.type=='Shot').select(ML_READY_DATA_DUMMIES)
-    return df.withColumn('sb_prediction', round(col('shot_statsbomb_xg')))
+    # def __getattr__(self, attr) -> DataFrame:
+    #     return getattr(self.df, attr)
 
-######### Function to split the location column into x and y coordinates #########
-def split_location(df):
+    @staticmethod
+    def shot_angle(shot_x : float, shot_y : float,
+                   GOAL_X : float, GOAL_Y1 : float,
+                   GOAL_Y2 : float) -> float:
+        import math
+        u_x = GOAL_X - shot_x
+        u_y = GOAL_Y1 - shot_y
+        v_y = GOAL_Y2 - shot_y
+        dot_product = u_x ** 2 + u_y * v_y
+        magnitude_u = math.sqrt(u_x **2 + u_y ** 2)
+        magnitude_v = math.sqrt(u_x **2 + v_y ** 2)
+        if magnitude_u == 0 or magnitude_v == 0:
+            return 0.0
+        angle_radians = math.acos(dot_product / (magnitude_u * magnitude_v))
+        return math.degrees(angle_radians)
+
+    def split_location(self):
+        self.df = self.df.withColumn("shot_location_x",
+                                     F.regexp_extract(F.col("location"), r'\[(.*?),', 1).cast("float"))\
+                         .withColumn("shot_location_y",
+                                     F.regexp_extract(F.col("location"), r', (.*?)\]', 1).cast("float"))\
+                         .drop('location')
+
+    def distance_to_goal(self):
+        self.df = self.df.withColumn("distance_to_goal",
+                                     F.round(F.sqrt(
+                                         F.pow(self.df.shot_location_x - F.lit(self.GOAL_X), 2) +
+                                         F.pow(self.df.shot_location_y - F.lit(self.GOAL_Y1 + self.GOAL_Y2)/2,
+                                               2)),
+                                     2))
+
+    def get_shot_angle(self):
+        self.df = self.df.withColumn("shot_angle",
+                                     self.shot_angle_udf(self.df.shot_location_x, self.df.shot_location_y))
+
+    def spatial_data(self):
+        self.split_location()
+        self.distance_to_goal()
+        self.get_shot_angle()
+
+    def preferred_foot(self) -> DataFrame:
+        pass_bp = self.df.filter(self.df.type == 'Pass')\
+                         .select('player_id', F.col('pass_body_part').alias('body_part'))\
+                         .filter(F.col('body_part').isin('Right Foot', 'Left Foot'))
+
+        shot_bp = self.df.filter(self.df.type == 'Shot')\
+                         .select('player_id', F.col('shot_body_part').alias('body_part'))\
+                         .filter(F.col('body_part').isin('Right Foot', 'Left Foot'))
+
+        bp = pass_bp.union(shot_bp)
+
+        bp_mapped = bp.withColumn('left_foot',
+                                  (F.col('body_part')=='Left Foot').cast('int'))\
+                      .withColumn('right_foot',
+                                  (F.col('body_part')=='Right Foot').cast('int'))\
+                      .drop('body_part')
+
+        foot_counts = bp_mapped.groupBy('player_id')\
+                               .sum('left_foot', 'right_foot')\
+                               .withColumnRenamed('sum(left_foot)', 'left_foot')\
+                               .withColumnRenamed('sum(right_foot)', 'right_foot')
+
+        foot_counts = foot_counts.withColumn("total_actions",
+                                             F.col("left_foot") + F.col("right_foot"))
+
+        foot_counts = foot_counts.withColumn("preferred_foot",
+                                             F.when((F.col("left_foot") / F.col("total_actions")) >= 0.66, "Left Foot")\
+                                              .when((F.col("right_foot") / F.col("total_actions")) >= 0.66, "Right Foot")\
+                                              .otherwise("Two-Footed"))
+
+        return foot_counts.drop('left_foot', 'right_foot', 'total_actions')
+
+    def shot_preferred_foot(self):
+        df = self.preferred_foot()
+        df = df.withColumnRenamed('player_id','f_player_id')
+        
+        self.df = self.df.join(df, self.df.player_id == df.f_player_id, how='left')\
+                         .drop('f_player_id')
+
+        self.df = self.df.withColumn('preferred_foot_shot',
+                                     F.when((F.col('preferred_foot')=='Two-Footed') &
+                                            (F.col('shot_body_part').isin('Right Foot', 'Left Foot')), True)\
+                                      .otherwise(F.col('preferred_foot') == F.col('shot_body_part')))
+
+    def shot_freeze_frame(self) -> DataFrame:
+        
+        return self.df.filter(F.col('shot_type')!='Penalty')\
+                      .select('id', 'shot_freeze_frame')\
+                      .dropna(subset=['shot_freeze_frame'])
+
+    def shot_frame_df(self) -> pd.DataFrame:
+        import ast
+        
+        df = self.shot_freeze_frame()
+        processed_rows = []
+        
+        for row in df.collect():
+            id = row.id
+            shot_frame = row.shot_freeze_frame.split('}, {')
+            
+            for i in range(len(shot_frame)):
+                x, y = ast.literal_eval(shot_frame[i].split('},')[0].split(': ')[1].split('],')[0] + ']')
+
+                position = shot_frame[i].split('},')[1].split(': ')[3].strip("''")
+
+                teammate = 'True' if 'True' in shot_frame[i].split('},')[2] else 'False'
+
+                processed_rows.append({'Shot_id': id, 'x': x, 'y': y, 'position': position, 'teammate': teammate})
+                
+        return pd.DataFrame(processed_rows)
+
+    @staticmethod
+    def check_point_inside(coordinates : list[float],
+                           shot_x : float, shot_y : float,
+                           GOAL_X : float = 120, GOAL_Y1 : float = 36,
+                           GOAL_Y2 : float = 44) -> int:
+        
+        def calculate_area(x1 : float, y1 : float,
+                           x2 : float, y2 : float,
+                           x3 : float, y3 : float) -> float:
+        
+            return abs(x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2)) / 2.0
+
+        def point_inside_triangle(player_x : float, player_y : float,
+                                  shot_x : float, shot_y : float,
+                                  GOAL_X : float, GOAL_Y1 : float,
+                                  GOAL_Y2 : float) -> bool:
+            area_abc = calculate_area(shot_x, shot_y,
+                                      GOAL_X, GOAL_Y1,
+                                      GOAL_X, GOAL_Y2)
+            
+            area_abp = calculate_area(shot_x, shot_y,
+                                      GOAL_X, GOAL_Y1,
+                                      player_x, player_y)
+            
+            area_bcp = calculate_area(shot_x, shot_y,
+                                      GOAL_X, GOAL_Y2,
+                                      player_x, player_y)
+            
+            area_cap = calculate_area(player_x, player_y,
+                                      GOAL_X, GOAL_Y2,
+                                      GOAL_X, GOAL_Y1)
+            
+            return np.isclose(area_abc,
+                              (area_abp + area_bcp + area_cap),rtol=1e-10)
+
+        count = 0
+        for coord in coordinates:
+            player_x, player_y = coord
+            if point_inside_triangle(player_x, player_y, shot_x, shot_y, GOAL_X, GOAL_Y1, GOAL_Y2):
+                count += 1
+        return count
+
+    def number_of_players(self):
+        frames = self.shot_frame_df()
+
+        frames = (frames.groupby('Shot_id')\
+                        .apply(lambda group: group[['x','y']].values.tolist(), include_groups=False)\
+                        .reset_index(name='coordinates'))
+        
+        frames = self.spark.createDataFrame(frames)
+        
+        frames = frames.join(self.df.select('id','shot_location_x','shot_location_y'),
+                             frames.Shot_id == self.df.id)\
+                       .drop('id')
+
+        frames = frames.withColumn('players_inside_area',
+                                   self.check_point_udf(F.col('coordinates'), F.col('shot_location_x'), F.col('shot_location_y')))
+
+        self.df = self.df.join(frames.select('Shot_id','players_inside_area'), self.df.id == frames.Shot_id, how='left')\
+                         .drop('Shot_id')\
+                         .withColumn('players_inside_area',
+                                     F.when(F.col('shot_type')=='Penalty', 1)\
+                         .otherwise(F.col('players_inside_area')))
+        
+    def create_dummies(self):
+        for col_name, mapping in self.DUMMIES_dict.items():
+            
+            for value, dummy_col in mapping.items():
+                
+                self.df = self.df.withColumn(dummy_col,
+                                             F.when(F.col(col_name) == value, 1)\
+                                 .otherwise(0))
+                
+            self.df = self.df.drop(col_name)
+            
+        self.df = self.df.withColumn('goal',
+                                     F.col('shot_outcome') == 'Goal')\
+                         .withColumn('header',
+                                     F.when((F.col('shot_body_part')=='Head'), 1)\
+                         .otherwise(0))\
+                         .drop('shot_body_part')
+
+    def bool_to_int(self):
+        for col_name in self.BOOL_TO_INT:
+            self.df = self.df.withColumn(col_name,
+                                         F.when(F.col(col_name).isNull(), 0)\
+                             .otherwise(F.col(col_name).cast('int')))
+
+        self.df = self.df.withColumn('shot_one_on_one',
+                                     F.when(F.col('pk_type')==1, 1)\
+                                     .otherwise(F.col('shot_one_on_one')))
+
+    def get_assist_data(self):
+        pass_events = [ev for ev in self.events if 'pass_' in ev]
+        pass_events.remove('pass_body_part')
+        df_p = self.df.select(pass_events)
+        df_p = df_p.withColumn('pass_height',
+                               F.when(F.col('pass_height')=='Ground Pass', 0)\
+                                .when(F.col('pass_height')=='Low Pass', 1)
+                                .otherwise(2))
+
+        df_p = df_p.withColumnRenamed('under_pressure','pass_under_pressure')
+
+        for col in self.df.columns:
+            if col in df_p.columns:
+                self.df = self.df.drop(col)
+
+        self.df = self.df.join(df_p, self.df.id == df_p.pass_assisted_shot_id, how='left')
+
+        self.df = self.df.withColumn('assisted',
+                                     F.when(F.col('pass_assisted_shot_id').isNotNull(), 1)\
+                                      .otherwise(0))\
+                         .withColumn('pass_height',
+                                     F.when(F.col('pass_height').isNull(), -1)\
+                                      .otherwise(F.col('pass_height')))\
+                         .withColumn('pass_angle',
+                                     F.when(F.col('pass_angle').isNull(),   4)\
+                                      .otherwise(F.col('pass_angle')))\
+                         .withColumn('pass_length',
+                                     F.when(F.col('pass_length').isNull(),   0)\
+                                      .otherwise(F.col('pass_length')))\
+                         .drop('pass_assisted_shot_id')
+                         
+    def preprocess(self):
+        self.spatial_data()
+        self.shot_preferred_foot()
+        self.number_of_players()
+        self.get_assist_data()
+        self.create_dummies()
+        self.bool_to_int()
+        self.df = self.df.filter(self.df.type=='Shot').select(self.variables)
+        self.df = EDASparkDataFrame(self.df)
+
+    def data_split(self, train_size : float = 0.8, seed : int = 42) -> tuple[DataFrame,DataFrame]:
+        feature_assembler = VectorAssembler(inputCols=self.features,
+                                            outputCol="features_vector")
+        assembled_data = feature_assembler.transform(self.df)
+        train_data, test_data = assembled_data.randomSplit([train_size, 1-train_size], seed=seed)
+
+        return train_data, test_data
+
+class EDASparkColumn:
     """
-    Splits the 'location' column into separate x and y coordinate columns.
-
-    :param df: PySpark DataFrame with a 'location' column containing string representations of coordinates.
-    :return: Updated DataFrame with 'shot_location_x' and 'shot_location_y' as float columns, and the 'location' column removed.
+    Wraps a Spark DataFrame column to provide common descriptive statistics.
     """
-    df_l = df.withColumn("shot_location_x", regexp_extract(col("location"), r'\[(.*?),', 1).cast("float")) \
-             .withColumn("shot_location_y", regexp_extract(col("location"), r', (.*?)\]', 1).cast("float")).drop('location')
-    return df_l
-
-######### Function to calculate the distance to the goal #########
-def distance_to_goal(df):
-    """
-    Calculates the distance from the shot location to the goal.
-
-    :param df: PySpark DataFrame with 'shot_location_x' and 'shot_location_y' columns.
-    :return: Updated DataFrame with an additional 'distance_to_goal' column, rounded to 4 decimal places.
-    """
-    goal_x, goal_y = 120, 40
-    df = df.withColumn("distance_to_goal",
-                       round(sqrt(pow(df.shot_location_x - lit(goal_x), 2) + pow(df.shot_location_y - lit(goal_y), 2)),4))
-    return df
-
-######### Function to calculate the angle to the goal #########
-def calculate_shot_angle(shot_x, shot_y):
-    """
-    Calculates the angle between two vectors pointing to the left and right goalposts from a shot location.
-
-    :param shot_x: Float representing the x-coordinate of the shot location.
-    :param shot_y: Float representing the y-coordinate of the shot location.
-    :return: Angle in degrees between the shot location and the two goalposts.
-    """
-
-    goal_x1, goal_y1 = 120, 36  # Left post
-    goal_x2, goal_y2 = 120, 44  # Right post
-
-    # Vectors to the posts
-    u_x, u_y = goal_x1 - shot_x, goal_y1 - shot_y
-    v_x, v_y = goal_x2 - shot_x, goal_y2 - shot_y
+    def __init__(self, df: DataFrame, col_name: str):
+        self.df = df
+        self.col_name = col_name
     
-    # Dot product and magnitudes
-    dot_product = u_x * u_x + u_y * v_y
-    magnitude_u = math.sqrt(u_x**2 + u_y**2)
-    magnitude_v = math.sqrt(u_x**2 + v_y**2)
+    # add try if col isn't numerical    
+    def mean(self):
+        """Return the mean of the column."""
+        result = self.df.select(F.mean(self.col_name).alias("mean")).collect()
+        return result[0]["mean"]
+
+    def median(self):
+        """Return the median of the column using approxQuantile."""
+        # approxQuantile returns a list; 0.001 is the relative error
+        return self.df.approxQuantile(self.col_name, [0.5], 0.001)[0]
+
+    def std(self):
+        """Return the standard deviation of the column."""
+        result = self.df.select(F.stddev(self.col_name).alias("std")).collect()
+        return result[0]["std"]
+
+    def var(self):
+        """Return the variance of the column."""
+        result = self.df.select(F.variance(self.col_name).alias("var")).collect()
+        return result[0]["var"]
+
+    def mode(self):
+        """Return the mode (most frequent value) of the column."""
+        # Group by the column, count, and take the value with highest count.
+        mode_row = (self.df
+                    .groupBy(self.col_name)
+                    .count()
+                    .orderBy("count", ascending=False)
+                    .first())
+        return mode_row[0] if mode_row is not None else None
+
+    def min(self):
+        """Return the minimum value in the column."""
+        result = self.df.select(F.min(self.col_name).alias("min")).collect()
+        return result[0]["min"]
+
+    def max(self):
+        """Return the maximum value in the column."""
+        result = self.df.select(F.max(self.col_name).alias("max")).collect()
+        return result[0]["max"]
+
+    def range(self):
+        """Return the range (max - min) of the column."""
+        return self.max() - self.min()
+
+    def count(self):
+        """Return the total count of values in the column."""
+        result = self.df.select(F.count(self.col_name).alias("count")).collect()
+        return result[0]["count"]
+
+    def count_nulls(self):
+        """Return the count of null values in the column."""
+        return self.df.filter(F.col(self.col_name).isNull()).count()
+
+    def count_unique(self):
+        """Return the number of distinct values in the column."""
+        return self.df.select(self.col_name).distinct().count()
+
+    def __repr__(self):
+        return f"<EDASparkColumn: {self.col_name}>"
+
+class EDASparkDataFrame:
+    """
+    Wraps a Spark DataFrame to allow attribute access for columns.
     
-    # Avoid division by zero
-    if magnitude_u == 0 or magnitude_v == 0:
-        return 0.0
+    For example, if the underlying DataFrame has a column 'age', then
+    eda_df.age will return an EDASparkColumn instance for 'age', so that you can write:
     
-    # Calculate angle in radians
-    angle_radians = math.acos(dot_product / (magnitude_u * magnitude_v))
-    
-    # Convert to degrees
-    return math.degrees(angle_radians)
-
-def get_shot_angle(df):
+        eda_df.age.mean()
     """
-    Calculates the shot angle relative to the goalposts and adds it to the DataFrame.
+    def __init__(self, df: DataFrame):
+        self._df = df
 
-    :param df: PySpark DataFrame with 'shot_location_x' and 'shot_location_y' columns.
-    :return: Updated DataFrame with an additional 'shot_angle' column containing the angle in degrees.
-    """
+    def __getattr__(self, attr):
+        # If attr is one of the columns, return an EDASparkColumn for that column.
+        if attr in self._df.columns:
+            return EDASparkColumn(self._df, attr)
+        # Otherwise, try to get the attribute from the underlying DataFrame.
+        attr_val = getattr(self._df, attr)
+        # If the attribute is callable (like .filter(), .select(), etc.),
+        # we wrap it so that if it returns a DataFrame, we wrap that too.
+        if callable(attr_val):
+            def wrapper(*args, **kwargs):
+                result = attr_val(*args, **kwargs)
+                if isinstance(result, DataFrame):
+                    return EDASparkDataFrame(result)
+                return result
+            return wrapper
+        return attr_val
 
-    # Register the function as a UDF
-    calculate_shot_angle_udf = udf(calculate_shot_angle, FloatType())
-    
-    # Apply the UDF to the DataFrame
-    df = df.withColumn(
-        "shot_angle",
-        calculate_shot_angle_udf(df["shot_location_x"], df["shot_location_y"]))
-    return df
+    def __repr__(self):
+        return repr(self._df)
 
-######### Function to get Spatial Data #########
-def spatial_data(df):
-    """
-    Processes spatial data by splitting the shot location, calculating the distance to goal, 
-    and determining the shot angle.
-
-    :param df: PySpark DataFrame with the necessary columns ('location', 'shot_location_x', 'shot_location_y').
-    :return: Updated DataFrame with 'shot_location_x', 'shot_location_y', 'distance_to_goal', and 'shot_angle' columns.
-    """
-
-    df = split_location(df)
-    df = distance_to_goal(df)
-    return get_shot_angle(df)
-
-######### Function to get the favorite foot of the shooter #########
-def preferred_foot(df):
-    """
-    Determines the preferred foot of each player based on their pass and shot body parts.
-
-    :param df: PySpark DataFrame with 'type', 'player_id', 'pass_body_part', and 'shot_body_part' columns.
-    :return: DataFrame with 'player_id' and 'preferred_foot' columns, indicating the player's dominant foot ('Left Foot', 'Right Foot', or 'Two-Footed').
-    """
-    # Filter Pass and Shot df, selecting relevant columns
-    pass_bp = df.filter(df.type == 'Pass')\
-        .select('player_id', col('pass_body_part').alias('body_part'))\
-        .filter(col('body_part').isin('Right Foot', 'Left Foot'))
-    
-    shot_bp = df.filter(df.type == 'Shot')\
-        .select('player_id', col('shot_body_part').alias('body_part'))\
-        .filter(col('body_part').isin('Right Foot', 'Left Foot'))
-
-    # Union the two DataFrames
-    bp = pass_bp.union(shot_bp)
-
-    # Map 'body_part' into separate columns for left and right foot counts
-    bp_mapped = bp.withColumn(
-        'left_foot',
-        (col('body_part') == 'Left Foot').cast('int'))\
-            .withColumn('right_foot',
-                    (col('body_part') == 'Right Foot').cast('int'))\
-                        .drop('body_part')
-
-    # Group by player and calculate sums for left and right foot counts
-    foot_counts = bp_mapped.groupBy('player_id')\
-        .sum('left_foot', 'right_foot')\
-        .withColumnRenamed('sum(left_foot)', 'left_foot')\
-        .withColumnRenamed('sum(right_foot)', 'right_foot')
-
-    # Add total actions column
-    foot_counts = foot_counts.withColumn(
-        "total_actions",
-        col("left_foot") + col("right_foot"))
-
-    # Determine preferred foot based on the 66% rule
-    foot_counts = foot_counts.withColumn(
-        "preferred_foot",
-        when((col("left_foot") / col("total_actions")) >= 0.66, "Left Foot")
-        .when((col("right_foot") / col("total_actions")) >= 0.66, "Right Foot")
-        .otherwise("Two-Footed"))
-
-    return foot_counts.drop('left_foot', 'right_foot', 'total_actions')
-
-######### Function to check if the shot was taken with the preferred foot #########
-def shot_preferred_foot(df):
-    """
-    Checks if the shot was taken with the player's preferred foot.
-
-    :param df: PySpark DataFrame with 'player_id', 'shot_body_part', and other relevant columns.
-    :return: Updated DataFrame with an additional 'preferred_foot_shot' column, indicating whether the shot was taken with the player's preferred foot (True or False).
-    """
-    dff = preferred_foot(df)
-    df = df.join(dff, df.player_id == dff.player_id, how='left').drop(dff.player_id)
-
-    df = df.withColumn(
-        'preferred_foot_shot',
-        when(
-            (col('preferred_foot') == 'Two-Footed') & (col('shot_body_part').isin('Right Foot', 'Left Foot')),
-            True).otherwise(col('preferred_foot') == col('shot_body_part')))
-    return df
-
-######### Function to create goal column #########
-def goal(df):
-    """
-    Adds a 'goal' column indicating whether the shot resulted in a goal.
-
-    :param df: PySpark DataFrame with a 'shot_outcome' column.
-    :return: Updated DataFrame with an additional 'goal' column (True if the shot outcome is 'Goal', False otherwise).
-    """
-    df = df.withColumn('goal', col('shot_outcome') == 'Goal')
-    return df
-
-######### Function to convert boolean columns to integer #########
-def bool_to_int(df, columns):
-    """
-    Converts boolean columns to integer (0 or 1) in the DataFrame.
-
-    :param df: PySpark DataFrame with boolean columns.
-    :param columns: List of column names to be converted.
-    :return: Updated DataFrame with the specified boolean columns converted to integers.
-    """
-    for col_name in columns:
-        df = df.withColumn(col_name, when(col(col_name).isNull(), 0).otherwise(col(col_name).cast('int')))
-    return df.fillna(0)
-
-######### Function to export shot_freeze_frame to a separate dataframe #########
-def shot_freeze_frame(df):
-    """
-    Exports a DataFrame with shot IDs and their corresponding freeze frames, excluding penalties.
-
-    :param df: PySpark DataFrame with 'shot_type', 'id', and 'shot_freeze_frame' columns.
-    :return: A DataFrame with 'id' and 'shot_freeze_frame' columns, excluding rows with missing or penalty shots.
-    """
-    return df.filter(col('shot_type')!='Penalty').select('id', 'shot_freeze_frame').dropna(subset=['shot_freeze_frame'])
-
-def shot_frame_to_df(df):
-    """
-    Exports shot freeze frames into a separate DataFrame, processing the 'shot_freeze_frame' column.
-
-    :param df: PySpark DataFrame with 'id' and 'shot_freeze_frame' columns.
-    :return: A Pandas DataFrame with 'Shot_id', 'x', 'y', 'position', and 'teammate' columns extracted from the shot freeze frames.
-    """
-    df = shot_freeze_frame(df)
-    processed_rows = []
-    for row in df.collect():
-        id = row.id
-        shot_frame = row.shot_freeze_frame.split('}, {')
-        for i in range(len(shot_frame)):
-            x, y = ast.literal_eval(shot_frame[i].split('},')[0].split(': ')[1].split('],')[0] + ']')
-            position = shot_frame[i].split('},')[1].split(': ')[3].strip("''")
-            teammate = 'True' if 'True' in shot_frame[i].split('},')[2] else 'False'
-            processed_rows.append({'Shot_id': id, 'x': x, 'y': y, 'position': position, 'teammate': teammate})
-    
-    return pd.DataFrame(processed_rows)
-
-######### Function to calculate the number of players inside the area of shooting #########
-def calculate_area(x1, y1, x2, y2, x3, y3):
-    """
-    Calculates the area of a triangle given the coordinates of its three vertices.
-
-    :param x1, y1: Coordinates of the first vertex.
-    :param x2, y2: Coordinates of the second vertex.
-    :param x3, y3: Coordinates of the third vertex.
-    :return: The area of the triangle formed by the three points.
-    """
-    return abs(x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2)) / 2.0
-
-def is_point_inside_triangle(player_x,player_y,shot_x,shot_y):
-    """
-    Checks if a player is inside the shooting area defined by the shot and goalposts.
-
-    :param player_x, player_y: Coordinates of the player's position.
-    :param shot_x, shot_y: Coordinates of the shot location.
-    :return: True if the player is inside the triangle formed by the shot and goalposts, False otherwise.
-    """
-    # Total area of the triangle ABC
-    area_abc = calculate_area(shot_x,shot_y,goal_X,goal_Y1,goal_X,goal_Y2)
-
-    # Area of sub-triangles ABP, BCP, CAP
-    area_abp = calculate_area(shot_x,shot_y,goal_X,goal_Y1,player_x,player_y)
-    area_bcp = calculate_area(shot_x,shot_y,goal_X,goal_Y2,player_x,player_y)
-    area_cap = calculate_area(player_x,player_y,goal_X,goal_Y2,goal_X,goal_Y1)
-
-    return np.isclose(area_abc, (area_abp + area_bcp + area_cap))
-
-def check_point_inside(coordinates, shot_x, shot_y):
-    """
-    Counts how many players are inside the shooting area defined by the shot and goalposts.
-
-    :param coordinates: List of tuples, each containing the (x, y) coordinates of a player.
-    :param shot_x, shot_y: Coordinates of the shot location.
-    :return: The number of players inside the shooting area.
-    """
-    count = 0
-    for coord in coordinates:
-        player_x, player_y = coord
-        if is_point_inside_triangle(player_x, player_y, shot_x, shot_y):
-            count += 1
-    return count
-
-def number_of_players_in_area(df,spark):
-    """
-    Calculates the number of players inside the shooting area for each shot and adds it to the DataFrame.
-
-    :param df: PySpark DataFrame containing shot data, including shot location.
-    :param spark: Spark session object.
-    :return: Updated DataFrame with an additional 'players_inside_area' column indicating the number of players inside the shooting area for each shot.
-    """
-
-    frames = shot_frame_to_df(df)
-    frames = (frames.groupby('Shot_id').apply(lambda group: group[['x', 'y']].values.tolist()).reset_index(name='coordinates'))
-    frames = spark.createDataFrame(frames)
-    frames = frames.join(df.select('id','shot_location_x','shot_location_y'),frames.Shot_id == df.id).drop('id')
-
-    # Register the UDF
-    check_point_udf = udf(check_point_inside, returnType=IntegerType())  # Use IntegerType from pyspark.sql.types
-
-    # Add a column with the count of points inside the area for each row in the DataFrame
-    frames = frames.withColumn("players_inside_area", check_point_udf(col("coordinates"), col("shot_location_x"), col("shot_location_y")))
-    df = df.join(frames.select('Shot_id','players_inside_area'),df.id == frames.Shot_id,how='left').drop('Shot_id')
-    df = df.withColumn('players_inside_area',when(col('shot_type') == 'Penalty',1).otherwise(col('players_inside_area')))
-    
-    return df
-
-######### Function to create Dummies #########
-def play_pattern_dummies(df):
-    """
-    Creates dummy variables for different play patterns and removes the original 'play_pattern' column.
-
-    :param df: PySpark DataFrame with a 'play_pattern' column.
-    :return: Updated DataFrame with dummy columns representing various play patterns (e.g., 'from_fk', 'from_ti', etc.).
-    """
-    df = df.withColumn('other_pp',when((col('play_pattern')=='Other'),1).otherwise(0)) \
-    .withColumn('from_fk',        when((col('play_pattern')=='From Free Kick'),1).otherwise(0)) \
-    .withColumn('from_ti',        when((col('play_pattern')=='From Throw In'),1).otherwise(0)) \
-    .withColumn('from_corner',    when((col('play_pattern')=='From Corner'),1).otherwise(0)) \
-    .withColumn('from_counter',   when((col('play_pattern')=='From Counter'),1).otherwise(0)) \
-    .withColumn('from_gk',        when((col('play_pattern')=='From Goal Kick'),1).otherwise(0)) \
-    .withColumn('from_keeper',    when((col('play_pattern')=='From Keeper'),1).otherwise(0)) \
-    .withColumn('from_ko',             when((col('play_pattern')=='From Kick Off'),1).otherwise(0))\
-    .withColumn('from_rp',             when((col('play_pattern')=='Regular Play'),1).otherwise(0)).drop('play_pattern')
-    return df
-
-def header_dummies(df):
-    """
-    Creates a dummy variable for header shots based on the 'shot_body_part' column and removes the original column.
-
-    :param df: PySpark DataFrame with a 'shot_body_part' column.
-    :return: Updated DataFrame with a 'header' column indicating whether the shot was a header (1) or not (0).
-    """
-    return df.withColumn('header', when((col('shot_body_part')=='Head'),1).otherwise(0)).drop('shot_body_part')
-
-def shot_type_dummies(df):
-    """
-    Creates dummy variables for different shot types and removes the original 'shot_type' column.
-
-    :param df: PySpark DataFrame with a 'shot_type' column.
-    :return: Updated DataFrame with dummy columns representing shot types (e.g., 'corner_type', 'fk_type', 'pk_type').
-    """
-
-    df = df.withColumn('corner_type', when((col('shot_type')=='Corner'),1).otherwise(0)) \
-    .withColumn('fk_type',            when((col('shot_type')=='Free Kick'),1).otherwise(0)) \
-    .withColumn('pk_type',            when((col('shot_type')=='Penalty'),1).otherwise(0)) \
-    .drop('shot_type')
-    return df
-
-def shot_technique_dummies(df):
-    """
-    Creates dummy variables for different shot techniques and removes the original 'shot_technique' column.
-
-    :param df: PySpark DataFrame with a 'shot_technique' column.
-    :return: Updated DataFrame with dummy columns representing shot techniques (e.g., 'half_volley_technique', 'volley_technique', etc.).
-    """
-
-    df = df.withColumn('half_volley_technique',when((col('shot_technique')=='Half Volley'),1).otherwise(0)) \
-    .withColumn('volley_technique',           when((col('shot_technique')=='Volley'),1).otherwise(0)) \
-    .withColumn('lob_technique',              when((col('shot_technique')=='Lob'),1).otherwise(0)) \
-    .withColumn('overhead_technique',         when((col('shot_technique')=='Overhead Kick'),1).otherwise(0)) \
-    .withColumn('backheel_technique',         when((col('shot_technique')=='Backheel'),1).otherwise(0)) \
-    .withColumn('diving_h_technique',         when((col('shot_technique')=='Diving Header'),1).otherwise(0)) \
-    .drop('shot_technique')
-    return df
-
-
-def create_dummies(df):
-    """
-    Creates dummy variables for play patterns, shot body part, shot type, and shot technique.
-
-    :param df: PySpark DataFrame with columns for 'play_pattern', 'shot_body_part', 'shot_type', and 'shot_technique'.
-    :return: Updated DataFrame with dummy variables for each of the mentioned columns.
-    """
-    df = play_pattern_dummies(df)
-    df = header_dummies(df)
-    df = shot_type_dummies(df)
-    return shot_technique_dummies(df)
-
-######### Function to call on the main dataset that returns a MLlib ready dataframe #########
-def preprocessing(df,spark):
-    """
-    Preprocesses the main dataset by applying various transformations and calculations to prepare it for machine learning.
-
-    :param df: PySpark DataFrame containing shot data.
-    :param spark: Spark session object.
-    :return: Preprocessed DataFrame, ready for use in machine learning models.
-    """    
-    df = df.select(EVENTS_COLUMNS)
-    print('Data loaded')
-    # Spatial data
-    df = spatial_data(df)
-    print('Spatial data calculated')
-    # Check if the shot was taken with the preferred foot
-    df = shot_preferred_foot(df)
-    print('Preferred foot calculated')
-    # Create goal column
-    df = goal(df)
-    print('Goal column created')
-    # Number of players inside the area
-    df = number_of_players_in_area(df,spark)
-    print('Number of players inside the area calculated')
-    # Create Dummies
-    df = create_dummies(df)
-    print('Dummies created')
-    # Convert Boolean data to integer
-    df = bool_to_int(df, columns=BOOL_TO_INT_COLUMNS)
-    print('Boolean data converted to integer')
-
-    return shot_data(df)
-
-######### Function to split the data into training and testing #########
-def pre_training(df,features=FEATURES,seed=42,train_size=0.8):
-    """
-    Prepares the dataset for training by assembling features into a vector 
-    and splitting it into training and testing subsets.
-
-    :param df: PySpark DataFrame to be processed.
-    :param features: List of feature column names to assemble into a vector.
-    :param train_size: Float indicating the proportion of data for training (default is 0.8).
-    :return: A tuple (train_data, test_data) with the training and testing DataFrames.
-    """
-    feature_assembler = VectorAssembler(inputCols=features, outputCol="features_vector")
-    assembled_data = feature_assembler.transform(df)
-    train_data, test_data = assembled_data.randomSplit([train_size, 1-train_size], seed=seed)
-    return train_data, test_data
-
-######### Function to extract the goal probability #########
-def goal_proba(df):
-    """
-    Processes the goal probability column in the given df DataFrame.
-
-    :param df: PySpark DataFrame with a 'probability' column containing lists.
-    :return: Updated DataFrame with the 'goal_probability' column as a float.
-    """
-    # Define the function to extract the second element from the probability list
-    def extract_goal_probability(probability):
-        return float(probability[1])
-
-    # Register the function as a UDF
-    extract_goal_probability_udf = udf(extract_goal_probability, DoubleType())
-
-    # Overwrite the prediction column using the UDF
-    df = df.withColumn("goal_probability", extract_goal_probability_udf(col("probability")))
-
-    # Format the goal_probability to remove scientific notation
-    df = df.withColumn("goal_probability", format_number(col("goal_probability"), 10))
-    
-    # Convert goal_probability to float
-    return df.withColumn("goal_probability", col("goal_probability").cast(DoubleType()))
+    def toDF(self):
+        """
+        Return the underlying Spark DataFrame.
+        """
+        return self._df
