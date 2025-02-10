@@ -230,7 +230,7 @@ class Preprocessing:
         self.df = self.df.join(frames.select('Shot_id','players_inside_area'), self.df.id == frames.Shot_id, how='left')\
                          .drop('Shot_id')\
                          .withColumn('players_inside_area',
-                                     F.when(F.col('shot_type')=='Penalty',1)\
+                                     F.when(F.col('shot_type')=='Penalty', 1)\
                          .otherwise(F.col('players_inside_area')))
         
     def create_dummies(self):
@@ -247,7 +247,7 @@ class Preprocessing:
         self.df = self.df.withColumn('goal',
                                      F.col('shot_outcome') == 'Goal')\
                          .withColumn('header',
-                                     F.when((F.col('shot_body_part')=='Head'),1)\
+                                     F.when((F.col('shot_body_part')=='Head'), 1)\
                          .otherwise(0))\
                          .drop('shot_body_part')
 
@@ -256,6 +256,10 @@ class Preprocessing:
             self.df = self.df.withColumn(col_name,
                                          F.when(F.col(col_name).isNull(), 0)\
                              .otherwise(F.col(col_name).cast('int')))
+
+        self.df = self.df.withColumn('shot_one_on_one',
+                                     F.when(F.col('pk_type')==1, 1)\
+                                     .otherwise(F.col('shot_one_on_one')))
 
     def get_assist_data(self):
         df_p = self.df.select(self.pass_events)
