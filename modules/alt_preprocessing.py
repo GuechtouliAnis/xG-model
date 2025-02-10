@@ -1,6 +1,7 @@
 import pyspark.sql.functions as F
 import pyspark.sql.types as T
 from pyspark.sql import DataFrame
+from pyspark.ml.feature import VectorAssembler
 import numpy as np
 import pandas as pd
 from .xG_constants import *
@@ -19,13 +20,13 @@ class Preprocessing:
     def __init__(self,
                  spark,
                  df : DataFrame,
-                 season : str | None = '2015/2016',
+                 season : str | None = SEASON,
                  events : list[str] = EVENTS,
-                 pass_events : list[str] = PASS_EVENTS,
                  DUMMIES_dict : dict[str] = DUMMIES,
                  BOOL_TO_INT : list[str] = BOOL_TO_INT,
-                 features : list[str] = FEATURES,
+                 variables : list[str] = VARIABLES,
                  full_pp : bool = True,
+                 features : list[str] = FEATURES,
                  GOAL_X : float = 120,
                  GOAL_Y1 : float = 36,
                  GOAL_Y2 : float = 44):
@@ -39,9 +40,9 @@ class Preprocessing:
         self.GOAL_Y1 = GOAL_Y1
         self.GOAL_Y2 = GOAL_Y2
         self.BOOL_TO_INT = BOOL_TO_INT
-        self.features = features
-        self.pass_events = pass_events
+        self.variables = variables
         self.season = season
+        self.features = features
         
         if self.season is not None:
             self.df = self.df.filter(self.df.season == self.season)
@@ -269,7 +270,9 @@ class Preprocessing:
                                      .otherwise(F.col('shot_one_on_one')))
 
     def get_assist_data(self):
-        df_p = self.df.select(self.pass_events)
+        pass_events = [ev for ev in self.events if 'pass_' in ev]
+        pass_events.remove('pass_body_part')
+        df_p = self.df.select(pass_events)
         df_p = df_p.withColumn('pass_height',
                                F.when(F.col('pass_height')=='Ground Pass', 0)\
                                 .when(F.col('pass_height')=='Low Pass', 1)
@@ -283,7 +286,7 @@ class Preprocessing:
 
         self.df = self.df.join(df_p, self.df.id == df_p.pass_assisted_shot_id, how='left')
 
-        self.df = self.df.withColumn('assist',
+        self.df = self.df.withColumn('assisted',
                                      F.when(F.col('pass_assisted_shot_id').isNotNull(), 1)\
                                       .otherwise(0))\
                          .withColumn('pass_height',
@@ -304,4 +307,12 @@ class Preprocessing:
         self.get_assist_data()
         self.create_dummies()
         self.bool_to_int()
-        self.df = self.df.filter(self.df.type=='Shot').select(self.features)
+        self.df = self.df.filter(self.df.type=='Shot').select(self.variables)
+
+    def data_split(self, train_size : float = 0.8, seed : int = 42) -> tuple[DataFrame,DataFrame]:
+        feature_assembler = VectorAssembler(inputCols=self.features,
+                                            outputCol="features_vector")
+        assembled_data = feature_assembler.transform(self.df)
+        train_data, test_data = assembled_data.randomSplit([train_size, 1-train_size], seed=seed)
+
+        return train_data, test_data
