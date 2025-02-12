@@ -20,6 +20,7 @@ class Preprocessing:
                  variables : list[str] = VARIABLES,
                  full_pp : bool = True,
                  features : list[str] = FEATURES,
+                 keep_shot_frame : bool = True,
                  GOAL_X : float = 120,
                  GOAL_Y1 : float = 36,
                  GOAL_Y2 : float = 44):
@@ -86,6 +87,8 @@ class Preprocessing:
         self.variables = variables
         self.season = season
         self.features = features
+        self.keep_shot_frame = keep_shot_frame
+        self.shot_frame = None
         
         # Filter the DataFrame by season if a season is specified
         if self.season is not None:
@@ -367,7 +370,7 @@ class Preprocessing:
 
         Returns
         -------
-        pd.DataFrame
+        self.shot_frame
             A structured dataset containing player positioning information during shot events.
         """
         
@@ -395,7 +398,11 @@ class Preprocessing:
 
                 # Append extracted information
                 processed_rows.append({'Shot_id': id, 'x': x, 'y': y, 'position': position, 'teammate': teammate})
-                
+        
+        if self.keep_shot_frame:
+            self.shot_frame = pd.DataFrame(processed_rows)
+            return self.shot_frame
+        
         return pd.DataFrame(processed_rows)
 
     @staticmethod
