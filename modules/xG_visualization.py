@@ -6,6 +6,7 @@ import pyspark
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+import matplotlib.lines as mlines
 from mplsoccer import VerticalPitch
 from .xG_constants import *
 
@@ -56,22 +57,52 @@ class Visualization:
         plt.title("Correlation Matrix")
         plt.show()
             
-    def ShotFrame(self, shot_id):
-        row = self.df.filter(self.df.id == shot_id).collect()[0]
+    def ShotFrame(self,
+                  shot_id : str,
+                  show_angle : bool = False,
+                  show_players : bool = True,
+                  show_info : bool = True):
         
+        row = self.df.filter(self.df.id == shot_id).collect()[0]
+        color = '#ad993c' if row['goal'] == 1 else '#ba4f45'        
         shot_data = self.shot_frame[self.shot_frame['Shot_id'] == row.id]
-        teammates = shot_data[shot_data['teammate'] == 'True']
-        opponents = shot_data[shot_data['teammate'] != 'True']
 
         fig, ax = plt.subplots(1, 1, figsize=(18, 6))
-
-        pitch = VerticalPitch(pad_bottom=0.5, half=True, corner_arcs=True, goal_type='box', pitch_type='statsbomb')
+        pitch = VerticalPitch(pad_bottom=0.5, half=True, corner_arcs=True,
+                              goal_type='box', pitch_type='statsbomb')
         pitch.draw(ax=ax)
 
-        pitch.goal_angle(x=row['shot_location_x'], y=row['shot_location_y'], goal='right',
-                        color='blue', alpha=0.3, zorder=1, ax=ax)
-        pitch.scatter(teammates['x'], teammates['y'], color='green', s=30, label='teammate', zorder=2, ax=ax)
-        pitch.scatter(opponents['x'], opponents['y'], color='red', s=30, label='opponent', zorder=2, ax=ax)
-        pitch.scatter(row['shot_location_x'], row['shot_location_y'], color='orange', ax=ax)
-        # ax.legend()
+        pitch.scatter(row['shot_location_x'], row['shot_location_y'],
+                      color='orange', ax=ax, zorder=4)
+        pitch.arrows(row['shot_location_x'], row['shot_location_y'],
+                     row['shot_end_x'], row['shot_end_y'],
+                     headwidth=3, headlength=2, width = 2,
+                     color=color, ax=ax)
+        
+        if show_angle:            
+            pitch.goal_angle(x=row['shot_location_x'], y=row['shot_location_y'],
+                             goal='right', color='blue', alpha=0.3, zorder=1, ax=ax)
+            
+        if show_players:
+            teammates = shot_data[shot_data['teammate'] == 'True']
+            opponents = shot_data[shot_data['teammate'] != 'True']
+            
+            pitch.scatter(teammates['x'], teammates['y'],
+                          color='green', s=30, zorder=2, ax=ax)
+            pitch.scatter(opponents['x'], opponents['y'],
+                          color='red', s=30, zorder=2, ax=ax)
+
+        if show_info:
+            shot_info = [f"xG: {row['shot_statsbomb_xg']:.2f}",
+                         f"Distance: {row['distance_to_goal']:.2f}",
+                         f"Angle: {row['shot_angle']:.2f}°",
+                         f"Players in area: {row['players_inside_area']}",
+                         f"Outcome: {row['shot_outcome']}"]
+            
+            legend_text = "\n".join(shot_info)
+            legend_handle = mlines.Line2D([], [], color='none', label=legend_text)
+            ax.legend(handles=[legend_handle], loc='upper left',
+                    handlelength=0, handletextpad=0, frameon=True,
+                    borderpad=0.5, labelspacing=0.3)
+            
         plt.show()

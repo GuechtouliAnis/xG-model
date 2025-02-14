@@ -7,7 +7,7 @@ EVENTS = [
     'under_pressure','shot_aerial_won','shot_first_time','shot_one_on_one',
     'shot_open_goal', 'shot_follows_dribble', # Boolean
     'shot_statsbomb_xg','shot_outcome',# Target
-    'pass_body_part',
+    'pass_body_part','shot_end_location',
     # Pass Data
     'pass_assisted_shot_id', 'pass_height', 'pass_length', 'pass_angle',
     'pass_aerial_won', 'pass_cross', 'pass_cut_back', 'pass_switch', 'pass_through_ball',
@@ -58,7 +58,8 @@ VARIABLES = ['id','player_id',
     'assisted', 'pass_height', 'pass_length', 'pass_angle',
     'pass_aerial_won', 'pass_cross', 'pass_cut_back', 'pass_switch', 'pass_through_ball',
     'pass_inswinging', 'pass_outswinging', 'pass_straight', 'pass_no_touch',
-
+    'shot_outcome', 'shot_end_location', 'shot_end_x', 'shot_end_y',
+    
     'shot_statsbomb_xg','goal']
 
 FEATURES = [

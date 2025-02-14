@@ -18,8 +18,8 @@ class Preprocessing:
                  DUMMIES_dict : dict[str] = DUMMIES,
                  BOOL_TO_INT : list[str] = BOOL_TO_INT,
                  variables : list[str] = VARIABLES,
-                 full_pp : bool = True,
                  features : list[str] = FEATURES,
+                 full_pp : bool = True,
                  keep_shot_frame : bool = True,
                  GOAL_X : float = 120,
                  GOAL_Y1 : float = 36,
@@ -190,6 +190,14 @@ class Preprocessing:
                          .withColumn("shot_location_y",
                                      F.regexp_extract(F.col("location"), r', (.*?)\]', 1).cast("float"))\
                          .drop('location')
+
+        self.df = self.df.withColumn("shot_end_location_clean",
+                                     F.regexp_replace(F.col("shot_end_location"), "[\\[\\]]", "")) \
+                         .withColumn("shot_end_x",
+                                     F.split(F.col("shot_end_location_clean"), ",")[0].cast("double")) \
+                         .withColumn("shot_end_y",
+                                     F.split(F.col("shot_end_location_clean"), ",")[1].cast("double")) \
+                         .drop("shot_end_location_clean")
 
     def distance_to_goal(self):
         """
