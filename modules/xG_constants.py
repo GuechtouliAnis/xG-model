@@ -58,7 +58,7 @@ VARIABLES = ['id','player_id',
     'assisted', 'pass_height', 'pass_length', 'pass_angle',
     'pass_aerial_won', 'pass_cross', 'pass_cut_back', 'pass_switch', 'pass_through_ball',
     'pass_inswinging', 'pass_outswinging', 'pass_straight', 'pass_no_touch',
-    'shot_outcome', 'shot_end_location', 'shot_end_x', 'shot_end_y',
+    'shot_outcome', 'shot_end_location', 'shot_end_x', 'shot_end_y', 'sb_prediction',
     
     'shot_statsbomb_xg','goal']
 

@@ -12,9 +12,11 @@
     |   |-- Open Data Matches v2.0.0.pdf
     |   |-- StatsBomb Open Data Specification v1.1.pdf
     |-- modules
+    |-- |-- xG_constants.py
     |   |-- xG_evaluation.py
     |   |-- xG_models.py
     |   |-- xG_preprocessing.py
+    |   |-- xG_visualization.py
     |-- notebooks
     |   |-- cleaning_frames.ipynb
     |   |-- data_splitter.ipynb

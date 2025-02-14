@@ -9,6 +9,8 @@ import ast
 from .xG_constants import *
 
 
+# PERSISTS
+
 class Preprocessing:
     def __init__(self,
                  spark : SparkSession,
@@ -578,7 +580,7 @@ class Preprocessing:
         # Ensure shot_one_on_one is set to 1 if pk_type is 1
         self.df = self.df.withColumn('shot_one_on_one',
                                      F.when(F.col('pk_type')==1, 1)\
-                                     .otherwise(F.col('shot_one_on_one')))
+                         .otherwise(F.col('shot_one_on_one')))
 
     def get_assist_data(self):
         """
@@ -672,6 +674,9 @@ class Preprocessing:
         self.get_assist_data()      # Merge assist-related pass data
         self.create_dummies()       # Create dummy variables
         self.bool_to_int()          # Convert boolean features to integers
+
+        # Converting Statsbomb xG predictions
+        self.df = self.df.withColumn('sb_prediction', F.when(F.col('shot_statsbomb_xg')>=0.5, 1).otherwise(0))
         
         # Keep only shot events and selected features
         self.df = self.df.filter(self.df.type=='Shot').select(self.variables)

@@ -11,16 +11,13 @@ from mplsoccer import VerticalPitch
 from .xG_constants import *
 
 # - data distribution (bins)
-# - xG heat map, shots heatmap
-
 # - feature importance
 # - xG distribution
 # - xG vs actual goal scatter
 # - ROC-AUC curve
-# - interactive vis
 ## - my xg vs sb xg
 ## - learning curve
-## - conf matrix
+## - RMSE distribution
 
 class Visualization:
     def __init__(self,
@@ -37,21 +34,29 @@ class Visualization:
         if self.include_target:
             self.features.extend(['shot_statsbomb_xg','goal'])
             
-    def Correlation(self):
-        assembler = VectorAssembler(inputCols=self.features,
+    def Correlation(self,
+                    features : list[str] = None):
+        if features is None:
+            features = self.features
+        else:
+            features = features
+        assembler = VectorAssembler(inputCols=features,
                                     outputCol="features")
-        df_vec = assembler.transform(self.df.select(*self.features))
+        df_vec = assembler.transform(self.df.select(*features))
         correlation_matrix = Correlation.corr(df_vec,
                                               "features").head()[0]
         corr_matrix = correlation_matrix.toArray()
 
-        plt.figure(figsize=(30, 30))
+        num_features = len(features)
+        fig_size = max(8, num_features * 0.6)
+        
+        plt.figure(figsize=(fig_size, fig_size))
         sns.heatmap(corr_matrix,
                     annot=True,
                     cmap="coolwarm",
                     fmt=".2f",
-                    xticklabels=self.features,
-                    yticklabels=self.features,
+                    xticklabels=features,
+                    yticklabels=features,
                     vmax=1,
                     vmin=-1)
         plt.title("Correlation Matrix")
@@ -106,3 +111,19 @@ class Visualization:
                     borderpad=0.5, labelspacing=0.3)
             
         plt.show()
+        
+    def ConfusionMatrix(self,
+                        actual : str = 'goal',
+                        predicted : str = 'prediction',
+                        cmap : str = 'Reds'):
+        
+        conf = self.df.crosstab(actual, predicted)    
+        conf_pd = conf.toPandas().set_index(actual+'_'+predicted)
+        conf_pd.columns = conf_pd.columns.astype(int)
+
+        sns.heatmap(conf_pd, annot=True, fmt="d", cmap=cmap, vmin=0)
+        plt.xlabel("Predicted")
+        plt.ylabel("Actual")
+        plt.title("Confusion Matrix")
+        plt.show()
+        
