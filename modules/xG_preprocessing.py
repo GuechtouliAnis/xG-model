@@ -6,10 +6,9 @@ import numpy as np
 import pandas as pd
 import math
 import ast
+import pyspark
 from .xG_constants import *
 
-
-# PERSISTS
 
 class Preprocessing:
     def __init__(self,
@@ -23,6 +22,7 @@ class Preprocessing:
                  features : list[str] = FEATURES,
                  full_pp : bool = True,
                  keep_shot_frame : bool = True,
+                 persist : bool = True,
                  GOAL_X : float = 120,
                  GOAL_Y1 : float = 36,
                  GOAL_Y2 : float = 44):
@@ -56,6 +56,12 @@ class Preprocessing:
         full_pp : bool, optional
             Flag indicating whether to run the full preprocessing pipeline upon initialization.
             If True, the `preprocess()` method is called (default is True).
+        keep_shot_frame : bool, optional
+            Flag indicating whether to store the shot frame data (`shot_frame_df`) for later use.
+            If True, `self.shot_frame` will store the processed shot frame data (default is True).
+        persist : bool, optional
+            Flag indicating whether to persist (cache) the processed DataFrame in memory.
+            If True, the DataFrame is cached for faster access during subsequent operations (default is True).
         features : list[str], optional
             List of feature column names to be used later in vector assembly and data splitting (default is FEATURES).
         GOAL_X : float, optional
@@ -68,12 +74,16 @@ class Preprocessing:
         Notes
         -----
         - If `season` is not None, the DataFrame is filtered to include only rows matching the season.
-        - The DataFrame is further filtered to include only shot events or events where
-        'pass_assisted_shot_id' is not null.
+        - The DataFrame is further filtered to include only shot events or events where 'pass_assisted_shot_id' is not null.
         - Two UDFs are created:
             * `shot_angle_udf`: Computes the angle of a shot based on its location.
             * `check_point_udf`: Determines the number of players within the goal area.
         - If `full_pp` is True, the full preprocessing pipeline (`preprocess()`) is executed.
+        - If `keep_shot_frame` is True, the processed shot frame data is stored in `self.shot_frame` and can be accessed later.
+        - If `persist` is True, the processed DataFrame is persisted using `pyspark.StorageLevel.MEMORY_AND_DISK`. 
+        The `foreach(lambda row: None)` call forces materialization of the cache.
+        - The expected columns in the input DataFrame are specified in the constants file (`xG_constants.py`), in the `EVENTS` list.
+
         """
 
         # Assign input parameters to instance attributes
@@ -91,6 +101,7 @@ class Preprocessing:
         self.features = features
         self.keep_shot_frame = keep_shot_frame
         self.shot_frame = None
+        self.persist = persist
         
         # Filter the DataFrame by season if a season is specified
         if self.season is not None:
@@ -680,6 +691,10 @@ class Preprocessing:
         
         # Keep only shot events and selected features
         self.df = self.df.filter(self.df.type=='Shot').select(self.variables)
+
+        if self.persist:
+            self.df = self.df.persist(pyspark.StorageLevel.MEMORY_AND_DISK)
+            self.df.foreach(lambda row: None)
 
     def data_split(self,
                    train_size : float = 0.8,

@@ -2,7 +2,6 @@ import pyspark.sql.functions as F
 from pyspark.ml.stat import Correlation
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.ml.feature import VectorAssembler
-import pyspark
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -10,7 +9,7 @@ import matplotlib.lines as mlines
 from mplsoccer import VerticalPitch
 from .xG_constants import *
 
-# - data distribution (bins)
+# - data distribution if continuous -> bins else bars
 # - feature importance
 # - xG distribution
 # - xG vs actual goal scatter
@@ -25,8 +24,7 @@ class Visualization:
                  features : list[str] = FEATURES,
                  include_target : bool = True):
         
-        self.df = data.df.persist(pyspark.StorageLevel.MEMORY_AND_DISK)
-        self.df.foreach(lambda row: None)
+        self.df = data.df
         self.shot_frame = data.shot_frame
         self.features = features.copy()
         self.include_target = include_target
@@ -127,3 +125,36 @@ class Visualization:
         plt.title("Confusion Matrix")
         plt.show()
         
+    def ShotGoalHeatMap(self,
+                        x : str = 'shot_location_x',
+                        y : str ='shot_location_y',
+                        target : str = 'goal'):
+        
+        df = self.df.select(x,y,target).toPandas()
+        pitch = VerticalPitch(line_color='black', half=True, pitch_type='statsbomb', line_zorder=2)
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 5))
+
+        pitch.draw(ax=ax1)
+        pitch.draw(ax=ax2)
+
+        bin_statistic_shots = pitch.bin_statistic(df[x],
+                                                  df[y],
+                                                  bins=50)
+        bin_statistic_goals = pitch.bin_statistic(df[df[target] == 1][x],
+                                                  df[df[target] == 1][y],
+                                                  bins=50)
+
+        pcm1 = pitch.heatmap(bin_statistic_shots, ax=ax1, cmap='Reds', edgecolor='white', linewidth=0.01)
+        pcm2 = pitch.heatmap(bin_statistic_goals, ax=ax2, cmap='Reds', edgecolor='white', linewidth=0.01)
+
+        ax_cbar1 = fig.add_axes([0.46, 0.09, 0.02, 0.8])
+        plt.colorbar(pcm1, cax=ax_cbar1)
+
+        ax_cbar2 = fig.add_axes([0.88, 0.09, 0.02, 0.8])
+        plt.colorbar(pcm2, cax=ax_cbar2)
+
+        ax1.set_title("Shots Heatmap")
+        ax2.set_title("Goals Heatmap")
+        
+        fig.suptitle("Comparison of Shots and Goals Heatmaps", fontsize=16)
+        plt.show()
