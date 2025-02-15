@@ -1,8 +1,13 @@
 from pyspark.sql import functions as F
 from pyspark.ml.evaluation import RegressionEvaluator
+from pyspark.sql import DataFrame
 
 class ModelEvaluation:
-    def __init__(self, df, result_col='goal', prediction_col='prediction', model_type="classification"):
+    def __init__(self,
+                 df : DataFrame,
+                 result_col : str ='goal',
+                 prediction_col : str ='prediction',
+                 model_type : str ="classification"):
         """
         Initializes the ModelEvaluation class with the DataFrame, column names, and model type.
 
@@ -22,7 +27,7 @@ class ModelEvaluation:
         elif self.model_type == "regression":
             self.metrics = self.calculate_regression_metrics()
         
-    def calculate_classification_metrics(self):
+    def calculate_classification_metrics(self) -> dict:
         """
         Calculates TP, TN, FP, FN based on the actual results and predicted results.
         
@@ -47,7 +52,7 @@ class ModelEvaluation:
             'FN': fn
         }
      
-    def calculate_regression_metrics(self):
+    def calculate_regression_metrics(self) -> dict:
         """
         Calculates regression metrics such as MSE, RMSE, MAE, and R2.
         
@@ -72,58 +77,66 @@ class ModelEvaluation:
         }
 
     
-    def accuracy(self):
+    def accuracy(self) -> float:
         """Calculates accuracy (classification only)."""
+        
         if self.model_type != "classification":
             raise ValueError("Accuracy is only applicable for classification models.")
         tp, tn, fp, fn = self.metrics.values()
         return (tp + tn) / (tp + tn + fp + fn)
     
-    def precision(self):
+    def precision(self) -> float:
         """Calculates precision (classification only)."""
+        
         if self.model_type != "classification":
             raise ValueError("Precision is only applicable for classification models.")
         tp, tn, fp, fn = self.metrics.values()
         return tp / (tp + fp) if (tp + fp) > 0 else 0.0
     
-    def recall(self):
+    def recall(self) -> float:
         """Calculates recall (classification only)."""
+        
         if self.model_type != "classification":
             raise ValueError("Recall is only applicable for classification models.")
         tp, tn, fp, fn = self.metrics.values()
         return tp / (tp + fn) if (tp + fn) > 0 else 0.0
     
-    def specificity(self):
+    def specificity(self) -> float:
         """Calculates specificity (classification only)."""
+        
         if self.model_type != "classification":
             raise ValueError("Specificity is only applicable for classification models.")
         tp, tn, fp, fn = self.metrics.values()
         return tn / (tn + fp) if (tn + fp) > 0 else 0.0
     
-    def f1(self):
+    def f1(self) -> float:
         """Calculates F1 score (classification only)."""
+        
         if self.model_type != "classification":
             raise ValueError("F1 score is only applicable for classification models.")
         p = self.precision()
         r = self.recall()
         return 2 * (p * r) / (p + r) if (p + r) > 0 else 0.0
     
-    def fpr(self):
+    def fpr(self) -> float:
         """Calculates False Positive Rate (classification only)."""
+        
         if self.model_type != "classification":
             raise ValueError("False Positive Rate (FPR) is only applicable for classification models.")
         tp, tn, fp, fn = self.metrics.values()
         return fp / (fp + tn) if (fp + tn) > 0 else 0.0
     
-    def fnr(self):
+    def fnr(self) -> float:
         """Calculates False Negative Rate (classification only)."""
+        
         if self.model_type != "classification":
             raise ValueError("False Negative Rate (FNR) is only applicable for classification models.")
         tp, tn, fp, fn = self.metrics.values()
         return fn / (fn + tp) if (fn + tp) > 0 else 0.0
     
-    def get_all_metrics(self):
+    def get_all_metrics(self) -> dict:
         """Returns all metrics in a dictionary."""
+        
         if self.model_type == "classification":
             return {
                 'Accuracy': round(self.accuracy() * 100, 2),

@@ -1,19 +1,23 @@
 import matplotlib.pyplot as plt
 from pyspark.ml.classification import LogisticRegression, RandomForestClassifier, MultilayerPerceptronClassifier
 from pyspark.ml.classification import GBTClassifier, NaiveBayes, DecisionTreeClassifier, LinearSVC
-from pyspark.ml.evaluation import BinaryClassificationEvaluator
+import pyspark.sql.functions as F
+import pyspark.sql.types as T
 import pandas as pd
-FEATURES = ['from_rp','from_fk','from_ti','from_corner','from_counter','from_gk','from_keeper','from_ko',
-            'header','corner_type','fk_type','pk_type',
-            'half_volley_technique','volley_technique','lob_technique','overhead_technique','backheel_technique',
-            'diving_h_technique',
-            'distance_to_goal', 'shot_angle', 'preferred_foot_shot', 'under_pressure',
-            'shot_aerial_won','shot_first_time','shot_one_on_one','shot_open_goal','shot_follows_dribble','players_inside_area']
+from pyspark.sql import DataFrame
+from .xG_constants import *
 
-MODELS = ['logistic', 'rf', 'mlp', 'gbt', 'nb', 'dt', 'svm']
 
 class ModelTrainer:
-    def __init__(self, train_data, test_data, model_type='logistic', label_col="goal", features_col="features_vector", layers=None, num_trees=None, max_iter=100):
+    def __init__(self,
+                 train_data : DataFrame,
+                 test_data : DataFrame,
+                 model_type : str = 'logistic',
+                 label_col : str = "goal",
+                 features_col : str = "features_vector",
+                 layers : int | None = None,
+                 num_trees : int | None = None,
+                 max_iter : int = 100):
         """
         Initializes and trains a model, and calculates evaluation metrics.
 
@@ -24,8 +28,9 @@ class ModelTrainer:
         :param features_col: The name of the features column.
         :param layers: Layers for MLP (only needed if using 'mlp').
         :param num_trees: Number of trees for RandomForest (only needed if using 'rf').
-        :param max_iter: Maximum iterations (default: 10). Used for models that support maxIter like LogisticRegression.
+        :param max_iter: Maximum iterations (default: 100). Used for models that support maxIter like LogisticRegression.
         """
+        
         self.train_data = train_data
         self.test_data = test_data
         self.label_col = label_col
@@ -43,77 +48,59 @@ class ModelTrainer:
 
         # Get predictions
         self.predictions = self.get_predictions()
-
-        # Evaluate the model
-        self.roc_auc = self.evaluate_model()
+        
+        self.goal_proba()
 
     def initialize_model(self):
         """Initialize the model based on model_type."""
+        
         if self.model_type == 'logistic':
-            model = LogisticRegression(featuresCol=self.features_col, labelCol=self.label_col, maxIter=self.max_iter)
+            model = LogisticRegression(featuresCol=self.features_col,
+                                       labelCol=self.label_col,
+                                       maxIter=self.max_iter)
         elif self.model_type == 'rf':
-            model = RandomForestClassifier(featuresCol=self.features_col, labelCol=self.label_col, numTrees=self.num_trees or 100)
+            model = RandomForestClassifier(featuresCol=self.features_col,
+                                           labelCol=self.label_col,
+                                           numTrees=self.num_trees or 100)
         elif self.model_type == 'mlp':
-            model = MultilayerPerceptronClassifier(featuresCol=self.features_col, labelCol=self.label_col, maxIter=self.max_iter, layers=self.layers, blockSize=128, seed=1234)
+            if not self.layers:
+                raise ValueError("The 'layers' parameter must be specified for the Multilayer Perceptron model.")            
+            model = MultilayerPerceptronClassifier(featuresCol=self.features_col,
+                                                labelCol=self.label_col,
+                                                maxIter=self.max_iter,
+                                                layers=self.layers,
+                                                blockSize=128,
+                                                seed=1234)
         elif self.model_type == 'gbt':
-            model = GBTClassifier(featuresCol=self.features_col, labelCol=self.label_col, maxIter=self.max_iter)
+            model = GBTClassifier(featuresCol=self.features_col,
+                                  labelCol=self.label_col,
+                                  maxIter=self.max_iter)
         elif self.model_type == 'nb':
-            model = NaiveBayes(featuresCol=self.features_col, labelCol=self.label_col, modelType="multinomial")
+            model = NaiveBayes(featuresCol=self.features_col,
+                               labelCol=self.label_col,
+                               modelType="multinomial")
         elif self.model_type == 'dt':
-            model = DecisionTreeClassifier(featuresCol=self.features_col, labelCol=self.label_col, maxDepth=5)
+            model = DecisionTreeClassifier(featuresCol=self.features_col,
+                                           labelCol=self.label_col,
+                                           maxDepth=5)
         elif self.model_type == 'svm':
-            model = LinearSVC(featuresCol=self.features_col, labelCol=self.label_col)
+            model = LinearSVC(featuresCol=self.features_col,
+                              labelCol=self.label_col)
         else:
             raise ValueError("Unknown model type. Choose from ['logistic', 'rf', 'mlp', 'gbt', 'nb', 'dt', 'svm']")
         return model
 
     def train_model(self):
         """Train the model on the training data."""
+        
         model_fitted = self.model.fit(self.train_data)
         return model_fitted
 
     def get_predictions(self):
         """Make predictions on the test data."""
+        
         predictions = self.model_trained.transform(self.test_data)
         return predictions
-
-    def evaluate_model(self):
-        """Evaluate the model using ROC-AUC."""
-        evaluator = BinaryClassificationEvaluator(labelCol=self.label_col, rawPredictionCol="rawPrediction")
-        roc_auc = evaluator.evaluate(self.predictions)
-        return roc_auc
-
-    def plot_learning_curve(self, max_iter_range=None):
-        """
-        Plots the learning curve for the provided model.
-        """
-        if max_iter_range is None:
-            max_iter_range = range(1, 11)  # Default range for maxIter (1 to 10)
-
-        roc_auc_list = []
-        
-        for max_iter in max_iter_range:
-            # Set the maxIter for iterative models (like LogisticRegression)
-
-            if hasattr(self.model, 'setMaxIter'):
-                self.model.setMaxIter(max_iter)
-            self.model_trained = self.train_model()
-            self.predictions = self.get_predictions()
-            roc_auc = self.evaluate_model()
-            
-            # Convert ROC-AUC to percentage and print it
-            roc_auc_percentage = roc_auc * 100
-            print(f"ROC-AUC for max_iter={max_iter}: {roc_auc_percentage:.2f}%")
-            
-            roc_auc_list.append(roc_auc_percentage)
-
-        # Plot the ROC-AUC learning curve
-        plt.plot(max_iter_range, roc_auc_list, marker='o')
-        plt.xlabel('Number of Iterations')
-        plt.ylabel('ROC-AUC (%)')
-        plt.title('Learning Curve for Model (ROC-AUC vs Iterations)')
-        plt.grid(True)
-        plt.show()
     
     def get_feature_importance(self):
         """
@@ -122,6 +109,7 @@ class ModelTrainer:
         :param feature_names: List of feature names (optional). Matches scores to feature names if provided.
         :return: Dictionary mapping features to scores (if feature_names provided), else list of scores.
         """
+        
         if hasattr(self.model_trained, "featureImportances"):
             # For tree-based models (e.g., RandomForest, GBT)
             importance = self.model_trained.featureImportances.toArray()
@@ -132,13 +120,39 @@ class ModelTrainer:
             raise AttributeError(f"Feature importance or coefficients are not available for the {self.model_type} model.")
         return importance
     
-    def feature_importance(self, feature_names=FEATURES):
+    def feature_importance(self,
+                           feature_names : list[str] = FEATURES) -> pd.DataFrame:
         """
         Converts feature importance to a DataFrame.
 
         :param feature_names: List of feature names.
         :return: DataFrame with feature names and importance scores.
         """
+        
         feature_importance = self.get_feature_importance()
         df = pd.DataFrame(list(zip(feature_names, feature_importance)), columns=['Feature', 'Importance'])
         return df
+    
+    def goal_proba(self):
+        """
+        Processes the goal probability column in the given df DataFrame.
+
+        :param df: PySpark DataFrame with a 'probability' column containing lists.
+        :return: Updated DataFrame with the 'goal_probability' column as a float.
+        """
+        
+        # Define the function to extract the second element from the probability list
+        def extract_goal_probability(probability):
+            return float(probability[1])
+
+        # Register the function as a UDF
+        extract_goal_probability_udf = F.udf(extract_goal_probability, T.DoubleType())
+
+        # Overwrite the prediction column using the UDF
+        self.predictions = self.predictions.withColumn("goal_probability", extract_goal_probability_udf(F.col("probability")))
+
+        # Format the goal_probability to remove scientific notation
+        self.predictions = self.predictions.withColumn("goal_probability", F.format_number(F.col("goal_probability"), 10))
+
+        # Convert goal_probability to float
+        self.predictions = self.predictions.withColumn("goal_probability", F.col("goal_probability").cast(T.DoubleType()))

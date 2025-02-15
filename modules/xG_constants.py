@@ -1,5 +1,7 @@
 SEASON = '2015/2016'
 
+MODELS = ['logistic', 'rf', 'mlp', 'gbt', 'nb', 'dt', 'svm']
+
 EVENTS = [
     'id', 'type', 'period','duration','location','player_id','position', # Event info
     'play_pattern','shot_body_part','shot_technique','shot_type', # Shot info
