@@ -15,13 +15,13 @@ class ModelTrainer:
                  model_type : str = 'logistic',
                  label_col : str = "goal",
                  features_col : str = "features_vector",
-                 layers : int | None = None,
+                 layers : list[int] | None = None,
                  num_trees : int | None = None,
                  max_iter : int = 100):
         """
         Initializes and trains a model, and calculates evaluation metrics.
 
-        :param model_type: Type of model to use (str). Options: 'logistic', 'rf', 'mlp', 'gbt', 'nb', 'dt', 'svm'.
+        :param model_type: Type of model to use (str). Options: 'logistic', 'rf', 'mlp', 'gbt', 'dt', 'svm'.
         :param train_data: The training dataset.
         :param test_data: The testing dataset.
         :param label_col: The name of the label column.
@@ -75,10 +75,6 @@ class ModelTrainer:
             model = GBTClassifier(featuresCol=self.features_col,
                                   labelCol=self.label_col,
                                   maxIter=self.max_iter)
-        elif self.model_type == 'nb':
-            model = NaiveBayes(featuresCol=self.features_col,
-                               labelCol=self.label_col,
-                               modelType="multinomial")
         elif self.model_type == 'dt':
             model = DecisionTreeClassifier(featuresCol=self.features_col,
                                            labelCol=self.label_col,

@@ -1,15 +1,15 @@
-import pyspark.sql.functions as F
-import pyspark.sql.types as T
-from pyspark.sql import DataFrame, SparkSession
-from pyspark.ml.feature import VectorAssembler
 import numpy as np
 import pandas as pd
 import math
 import ast
 import pyspark
+import pyspark.sql.functions as F
+import pyspark.sql.types as T
+from pyspark.sql import DataFrame, SparkSession
+from pyspark.ml.feature import VectorAssembler
 from .xG_constants import *
 
-
+# Match_id, Team id, Team
 class Preprocessing:
     def __init__(self,
                  spark : SparkSession,

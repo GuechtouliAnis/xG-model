@@ -12,11 +12,10 @@ from .xG_constants import *
 # - data distribution if continuous -> bins else bars
 # - feature importance
 # - xG distribution
-# - xG vs actual goal scatter
 # - ROC-AUC curve
 ## - my xg vs sb xg
-## - learning curve
 ## - RMSE distribution
+# - Match xG evolution vs final result (Mine vs sb)
 
 class Visualization:
     def __init__(self,

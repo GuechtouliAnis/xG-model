@@ -2,6 +2,8 @@ from pyspark.sql import functions as F
 from pyspark.ml.evaluation import RegressionEvaluator
 from pyspark.sql import DataFrame
 
+# RMSE, MSE, MAE
+# ROC-AUC
 class ModelEvaluation:
     def __init__(self,
                  df : DataFrame,
@@ -76,7 +78,6 @@ class ModelEvaluation:
             'R2': round(r2*100, 2)
         }
 
-    
     def accuracy(self) -> float:
         """Calculates accuracy (classification only)."""
         
