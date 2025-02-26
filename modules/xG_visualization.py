@@ -25,19 +25,22 @@ class Visualization:
                  include_target : bool = True):
         
         self.df = data.df
-        self.shot_frame = data.shot_frame
         self.features = features.copy()
         self.include_target = include_target
         
-        if self.include_target:
-            self.features.extend(['shot_statsbomb_xg','goal'])
+        target = ['shot_statsbomb_xg','goal']
+        for t in target:
+            if self.include_target and t not in self.features:
+                self.features.extend(t)
+
+        if hasattr(data, 'shot_frame'):
+            self.shot_frame = data.shot_frame
             
     def Correlation(self,
                     features : list[str] = None):
         if features is None:
             features = self.features
-        else:
-            features = features
+
         assembler = VectorAssembler(inputCols=features,
                                     outputCol="features")
         df_vec = assembler.transform(self.df.select(*features))
@@ -65,6 +68,9 @@ class Visualization:
                   show_angle : bool = False,
                   show_players : bool = True,
                   show_info : bool = True):
+        
+        if not hasattr(self.df, 'shot_frame'):
+            raise ValueError('Object has no attribute shot_frame')
         
         row = self.df.filter(self.df.id == shot_id).collect()[0]
         color = '#ad993c' if row['goal'] == 1 else '#ba4f45'        
@@ -174,7 +180,7 @@ class Visualization:
                             .rowsBetween(Window.unboundedPreceding, Window.currentRow)
 
         df = df.withColumn('sb_CxG', F.sum('shot_statsbomb_xg').over(window_spec)) \
-               .withColumn('CxG', F.sum('goal_probability').over(window_spec))
+               .withColumn('CxG', F.sum('xG').over(window_spec))
 
         df_p = df.select(columns).orderBy('minute', 'second').toPandas()
         teams = df_p[~df_p['team'].isna()]['team'].unique()
@@ -228,7 +234,7 @@ class Visualization:
     @staticmethod
     def error_dist(predictions : DataFrame,
                 actual : str ='shot_statsbomb_xg',
-                predicted : str = 'goal_probability',
+                predicted : str = 'xG',
                 bins : int = 20):
         
         predictions = predictions.withColumn(

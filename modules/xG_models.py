@@ -47,7 +47,7 @@ class ModelTrainer:
         self.model_trained = self.train_model()
 
         # Get predictions
-        self.predictions = self.get_predictions()
+        self.df = self.get_predictions()
         
         self.goal_proba()
 
@@ -126,7 +126,8 @@ class ModelTrainer:
         """
         
         feature_importance = self.get_feature_importance()
-        df = pd.DataFrame(list(zip(feature_names, feature_importance)), columns=['Feature', 'Importance'])
+        df = pd.DataFrame(list(zip(feature_names, feature_importance)),
+                          columns=['Feature', 'Importance'])
         return df
     
     def goal_proba(self):
@@ -134,21 +135,21 @@ class ModelTrainer:
         Processes the goal probability column in the given df DataFrame.
 
         :param df: PySpark DataFrame with a 'probability' column containing lists.
-        :return: Updated DataFrame with the 'goal_probability' column as a float.
+        :return: Updated DataFrame with the 'xG' column as a float.
         """
         
         # Define the function to extract the second element from the probability list
-        def extract_goal_probability(probability):
+        def extract_xg(probability):
             return float(probability[1])
 
         # Register the function as a UDF
-        extract_goal_probability_udf = F.udf(extract_goal_probability, T.DoubleType())
+        extract_xg_udf = F.udf(extract_xg, T.DoubleType())
 
         # Overwrite the prediction column using the UDF
-        self.predictions = self.predictions.withColumn("goal_probability", extract_goal_probability_udf(F.col("probability")))
-
         # Format the goal_probability to remove scientific notation
-        self.predictions = self.predictions.withColumn("goal_probability", F.format_number(F.col("goal_probability"), 10))
-
         # Convert goal_probability to float
-        self.predictions = self.predictions.withColumn("goal_probability", F.col("goal_probability").cast(T.DoubleType()))
+        self.df = self.df.withColumn("xG", extract_xg_udf(F.col("probability"))) \
+                         .withColumn("xG", F.format_number(F.col("xG"), 10))\
+                         .withColumn("xG", F.col("xG").cast(T.DoubleType()))\
+                         .withColumn('prediction', F.col("prediction").cast(T.IntegerType()))
+                         
