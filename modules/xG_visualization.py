@@ -6,6 +6,7 @@ from pyspark.ml.feature import VectorAssembler
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import plotly.express as px
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
 from mplsoccer import VerticalPitch
@@ -16,7 +17,6 @@ from .xG_constants import *
 # - xG distribution
 # - ROC-AUC curve
 ## - my xg vs sb xg
-## - RMSE distribution
 
 class Visualization:
     def __init__(self,
@@ -110,21 +110,6 @@ class Visualization:
             
         plt.show()
         
-    def ConfusionMatrix(self,
-                        actual : str = 'goal',
-                        predicted : str = 'prediction',
-                        cmap : str = 'Reds'):
-        
-        conf = self.df.crosstab(actual, predicted)    
-        conf_pd = conf.toPandas().set_index(actual+'_'+predicted)
-        conf_pd.columns = conf_pd.columns.astype(int)
-
-        sns.heatmap(conf_pd, annot=True, fmt="d", cmap=cmap, vmin=0)
-        plt.xlabel("Predicted")
-        plt.ylabel("Actual")
-        plt.title("Confusion Matrix")
-        plt.show()
-        
     def ShotGoalHeatMap(self,
                         x : str = 'shot_location_x',
                         y : str ='shot_location_y',
@@ -159,11 +144,29 @@ class Visualization:
         fig.suptitle("Comparison of Shots and Goals Heatmaps", fontsize=16)
         plt.show()
         
+    # Create another class for post prediction
+    def ConfusionMatrix(self,
+                        actual : str = 'goal',
+                        predicted : str = 'prediction',
+                        cmap : str = 'Reds'):
+        
+        conf = self.df.crosstab(actual, predicted)    
+        conf_pd = conf.toPandas().set_index(actual+'_'+predicted)
+        conf_pd.columns = conf_pd.columns.astype(int)
+
+        sns.heatmap(conf_pd, annot=True, fmt="d", cmap=cmap, vmin=0)
+        plt.xlabel("Predicted")
+        plt.ylabel("Actual")
+        plt.title("Confusion Matrix")
+        plt.show()
+
     @staticmethod
     def xGTimeline(predictions : DataFrame,
                    match_id : int,
                    columns : list[str] = CUMULATIVE_XG_COLUMNS):
 
+        # possibility of match_id being None, if so, chose a random match
+        
         df = predictions.filter(F.col('match_id') == match_id)
 
         window_spec = Window.partitionBy('match_id', 'team') \
@@ -221,3 +224,51 @@ class Visualization:
 
         plt.tight_layout()
         plt.show()
+        
+    @staticmethod
+    def error_dist(predictions : DataFrame,
+                actual : str ='shot_statsbomb_xg',
+                predicted : str = 'goal_probability',
+                bins : int = 20):
+        
+        predictions = predictions.withColumn(
+            "Absolute_Error",
+            F.round(F.abs(F.col(actual) - F.col(predicted)),5))
+        rmse_pd = predictions.select("Absolute_Error").toPandas()
+
+        plt.hist(rmse_pd["Absolute_Error"], bins=bins, edgecolor="black")
+        plt.xlabel("Absolute Error")
+        plt.ylabel("Frequency")
+        plt.title("Distribution of Absolute Error")
+        plt.show()
+
+    @staticmethod
+    def GxG_scatter(predictions : DataFrame):
+
+        GxG = predictions.groupBy("player",'team')\
+            .agg(F.sum("goal").alias("goals"),
+                    F.round(F.sum("shot_statsbomb_xg"),3).alias("xG"))\
+            .filter((F.col('goals')>1) & (F.col('xG')>1))\
+            .withColumn('G-xG', F.round(F.col('goals') - F.col('xG'),5))\
+            .toPandas()
+
+        GxG['Performance'] = np.where(GxG['G-xG'] < 0, 'Underperformer', 'Overperformer')
+
+        fig = px.scatter(
+            GxG,
+            x="goals",
+            y="xG",
+            color="Performance",
+            hover_data=["player"],
+            title="Goals vs. xG Scatter Plot",
+            labels={"player": "Player", "xG": "xG", "goals": "Goals"},
+            color_discrete_map={'Underperformer': 'red',
+                                'Overperformer': 'green'})
+
+        fig.update_layout(
+            height=700,
+            width=700,
+            xaxis_range=[0,GxG['goals'].max()+2],
+            yaxis_range=[0,GxG['xG'].max()+2])
+
+        fig.show()

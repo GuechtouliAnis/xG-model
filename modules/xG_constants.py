@@ -3,7 +3,7 @@ SEASON = '2015/2016'
 MODELS = ['logistic', 'rf', 'mlp', 'gbt', 'dt', 'svm']
 
 EVENTS = [
-    'id', 'match_id', 'minute', 'second', 'type', 'period', 'location', 'team', 'player_id', 'position', # Event info
+    'id', 'match_id', 'minute', 'second', 'type', 'period', 'location', 'team', 'player_id','player', 'position', # Event info
     'play_pattern','shot_body_part','shot_technique','shot_type', # Shot info
     'shot_freeze_frame', # Complicated info
     'under_pressure','shot_aerial_won','shot_first_time','shot_one_on_one',
@@ -47,7 +47,7 @@ BOOL_TO_INT = ['preferred_foot_shot','under_pressure','shot_aerial_won',
                'pass_aerial_won', 'pass_cross', 'pass_cut_back', 'pass_switch', 'pass_through_ball',
                'pass_inswinging', 'pass_outswinging', 'pass_straight', 'pass_no_touch']
 
-VARIABLES = ['id', 'player_id', 'match_id', 'team', 'period', 'minute', 'second',
+VARIABLES = ['id', 'player','player_id', 'match_id', 'team', 'period', 'minute', 'second',
     'shot_location_x','shot_location_y','distance_to_goal','shot_angle', # Spatial data
     'preferred_foot_shot', # Boolean
     'from_rp','from_fk','from_ti','from_corner','from_counter','from_gk','from_keeper','from_ko', # Play pattern
