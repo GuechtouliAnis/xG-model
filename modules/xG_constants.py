@@ -78,3 +78,6 @@ FEATURES = [
     'pass_aerial_won', 'pass_cross', 'pass_cut_back', 'pass_switch', 'pass_through_ball',
     'pass_inswinging', 'pass_outswinging', 'pass_straight', 'pass_no_touch'
     ]
+
+CUMULATIVE_XG_COLUMNS = ['match_id', 'period', 'team', 'minute', 'second',
+                         'shot_statsbomb_xg', 'goal_probability', 'sb_CxG', 'CxG', 'goal']

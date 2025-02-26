@@ -1,7 +1,9 @@
 import pyspark.sql.functions as F
 from pyspark.ml.stat import Correlation
-from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql import DataFrame
+from pyspark.sql.window import Window
 from pyspark.ml.feature import VectorAssembler
+import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -15,7 +17,6 @@ from .xG_constants import *
 # - ROC-AUC curve
 ## - my xg vs sb xg
 ## - RMSE distribution
-# - Match xG evolution vs final result (Mine vs sb)
 
 class Visualization:
     def __init__(self,
@@ -156,4 +157,67 @@ class Visualization:
         ax2.set_title("Goals Heatmap")
         
         fig.suptitle("Comparison of Shots and Goals Heatmaps", fontsize=16)
+        plt.show()
+        
+    @staticmethod
+    def xGTimeline(predictions : DataFrame,
+                   match_id : int,
+                   columns : list[str] = CUMULATIVE_XG_COLUMNS):
+
+        df = predictions.filter(F.col('match_id') == match_id)
+
+        window_spec = Window.partitionBy('match_id', 'team') \
+                            .orderBy('minute', 'second') \
+                            .rowsBetween(Window.unboundedPreceding, Window.currentRow)
+
+        df = df.withColumn('sb_CxG', F.sum('shot_statsbomb_xg').over(window_spec)) \
+               .withColumn('CxG', F.sum('goal_probability').over(window_spec))
+
+        df_p = df.select(columns).orderBy('minute', 'second').toPandas()
+        teams = df_p[~df_p['team'].isna()]['team'].unique()
+
+        i = 91 if df_p['minute'].max() < 90 else df_p['minute'].max() + 1
+
+        mins_range = np.arange(0, i)
+        sec_range = np.arange(0, 60)
+        ft = pd.DataFrame([(m, s) for m in mins_range for s in sec_range], columns=['minute', 'second'])
+
+        max_sb = max_cxg = 1
+
+        fig, (ax1, ax2) = plt.subplots(ncols=2, nrows=1, figsize=(14, 7))
+
+        for team in teams:
+            df_team = df_p[df_p['team'] == team]
+            df_team = ft.merge(df_team, on=('minute', 'second'), how='left')
+            df_team['sb_CxG'] = df_team['sb_CxG'].ffill().fillna(0)
+            df_team['CxG'] = df_team['CxG'].ffill().fillna(0)
+            df_team['goal'] = df_team['goal'].fillna(0).astype(int)
+            
+            df_team['time'] = df_team['minute'] + round(df_team['second'] / 60, 2)
+            
+            max_sb = max(max_sb, df_team['sb_CxG'].max())
+            max_cxg = max(max_cxg, df_team['CxG'].max())
+            
+            ax1.plot(df_team['time'], df_team['sb_CxG'], label=team)
+            ax1.scatter(df_team[df_team['goal'] == 1]['time'], df_team[df_team['goal'] == 1]['sb_CxG'])
+            
+            ax2.plot(df_team['time'], df_team['CxG'], label=team)
+            ax2.scatter(df_team[df_team['goal'] == 1]['time'], df_team[df_team['goal'] == 1]['CxG'])
+
+        max_y = max(max_sb, max_cxg)
+
+        for ax in [ax1, ax2]:
+            ax.axvline(x=45, color='black', linestyle='--')
+            ax.set_xticks([15, 30, 45, 60, 75, 90])
+            ax.set_xlim(0, i - 1)
+            ax.set_ylim(0, max_y + 0.3)
+            ax.legend(loc='upper left')
+            ax.set_xlabel('Minutes')
+
+        ax1.set_ylabel('statsbomb xG')
+        ax1.set_title('Statsbomb xG Cumulative Timeline')
+        ax2.set_ylabel('xG')
+        ax2.set_title('Predicted xG Cumulative Timeline')
+
+        plt.tight_layout()
         plt.show()
