@@ -14,7 +14,6 @@ from .xG_constants import *
 
 # - data distribution if continuous -> bins else bars
 # - feature importance
-# - xG distribution
 # - ROC-AUC curve
 ## - my xg vs sb xg
 
@@ -28,13 +27,14 @@ class Visualization:
         self.features = features.copy()
         self.include_target = include_target
         
-        target = ['shot_statsbomb_xg','goal']
-        for t in target:
-            if self.include_target and t not in self.features:
-                self.features.extend(t)
+        target = ['shot_statsbomb_xg', 'goal']
+        if self.include_target:
+            self.features.extend(t for t in target if t not in self.features)
 
         if hasattr(data, 'shot_frame'):
             self.shot_frame = data.shot_frame
+        else:
+            self.shot_frame = None
             
     def Correlation(self,
                     features : list[str] = None):
@@ -69,7 +69,7 @@ class Visualization:
                   show_players : bool = True,
                   show_info : bool = True):
         
-        if not hasattr(self.df, 'shot_frame'):
+        if self.shot_frame is None:
             raise ValueError('Object has no attribute shot_frame')
         
         row = self.df.filter(self.df.id == shot_id).collect()[0]
@@ -149,8 +149,7 @@ class Visualization:
         
         fig.suptitle("Comparison of Shots and Goals Heatmaps", fontsize=16)
         plt.show()
-        
-    # Create another class for post prediction
+
     def ConfusionMatrix(self,
                         actual : str = 'goal',
                         predicted : str = 'prediction',
@@ -166,14 +165,11 @@ class Visualization:
         plt.title("Confusion Matrix")
         plt.show()
 
-    @staticmethod
-    def xGTimeline(predictions : DataFrame,
+    def xGTimeline(self,
                    match_id : int,
                    columns : list[str] = CUMULATIVE_XG_COLUMNS):
-
-        # possibility of match_id being None, if so, chose a random match
         
-        df = predictions.filter(F.col('match_id') == match_id)
+        df = self.df.filter(F.col('match_id') == match_id)
 
         window_spec = Window.partitionBy('match_id', 'team') \
                             .orderBy('minute', 'second') \
@@ -230,17 +226,16 @@ class Visualization:
 
         plt.tight_layout()
         plt.show()
-        
-    @staticmethod
-    def error_dist(predictions : DataFrame,
+
+    def error_dist(self,
                 actual : str ='shot_statsbomb_xg',
                 predicted : str = 'xG',
                 bins : int = 20):
         
-        predictions = predictions.withColumn(
+        df = self.df.withColumn(
             "Absolute_Error",
             F.round(F.abs(F.col(actual) - F.col(predicted)),5))
-        rmse_pd = predictions.select("Absolute_Error").toPandas()
+        rmse_pd = df.select("Absolute_Error").toPandas()
 
         plt.hist(rmse_pd["Absolute_Error"], bins=bins, edgecolor="black")
         plt.xlabel("Absolute Error")
@@ -248,10 +243,9 @@ class Visualization:
         plt.title("Distribution of Absolute Error")
         plt.show()
 
-    @staticmethod
-    def GxG_scatter(predictions : DataFrame):
+    def GxG_scatter(self):
 
-        GxG = predictions.groupBy("player",'team')\
+        GxG = self.df.groupBy("player",'team')\
             .agg(F.sum("goal").alias("goals"),
                     F.round(F.sum("shot_statsbomb_xg"),3).alias("xG"))\
             .filter((F.col('goals')>1) & (F.col('xG')>1))\
@@ -278,3 +272,50 @@ class Visualization:
             yaxis_range=[0,GxG['xG'].max()+2])
 
         fig.show()
+    
+    def ShotsDistribution(self,
+                          columns : list[str] =SHOT_DIST_COLUMNS,
+                          val : str ='shot_statsbomb_xg'):
+
+        df_s = self.df.select(columns).toPandas()
+
+        colors = {(0.00, 0.25): '#fcc4ad',
+                    (0.25, 0.50): '#fb694a',
+                    (0.50, 0.75): '#b11218',
+                    (0.75, 1.00): '#67000d'}
+
+        fig, ax = plt.subplots(1, 1, figsize=(18, 6))
+
+        pitch = VerticalPitch(pad_bottom=0.5,
+                                half=True,
+                                corner_arcs=True,
+                                goal_type='box',
+                                pitch_type='statsbomb')
+        pitch.draw(ax=ax)
+
+        legend_elements = []
+
+        for key, value in colors.items():
+
+            df_1 = df_s[df_s[val].between(key[0], key[1])]
+
+            pitch.scatter(df_1['shot_location_x'],
+                            df_1['shot_location_y'],
+                            ax=ax,
+                            s=3,
+                            c=value)
+
+            label = f"{key[0]:.2f}–{key[1]:.2f}"
+
+            handle = mlines.Line2D([], [],
+                                    marker='o',
+                                    color='w',
+                                    markerfacecolor=value,
+                                    markersize=8,
+                                    label=label)
+
+            legend_elements.append(handle)
+
+        ax.legend(handles=legend_elements, title='xG Range', loc='lower right')
+        plt.show()
+        

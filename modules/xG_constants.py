@@ -80,4 +80,7 @@ FEATURES = [
     ]
 
 CUMULATIVE_XG_COLUMNS = ['match_id', 'period', 'team', 'minute', 'second',
-                         'shot_statsbomb_xg', 'goal_probability', 'sb_CxG', 'CxG', 'goal']
+                         'shot_statsbomb_xg', 'xG', 'sb_CxG', 'CxG', 'goal']
+
+SHOT_DIST_COLUMNS = ['id', 'player', 'player_id', 'match_id', 'team', 'shot_location_x', 'shot_location_y',
+                     'shot_end_location', 'shot_statsbomb_xg', 'sb_prediction', 'goal']
