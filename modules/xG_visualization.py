@@ -12,11 +12,6 @@ import matplotlib.lines as mlines
 from mplsoccer import VerticalPitch
 from .xG_constants import *
 
-# - data distribution if continuous -> bins else bars
-# - feature importance
-# - ROC-AUC curve
-## - my xg vs sb xg
-
 class Visualization:
     def __init__(self,
                  data : object,
@@ -227,7 +222,7 @@ class Visualization:
         plt.tight_layout()
         plt.show()
 
-    def error_dist(self,
+    def ErrorDist(self,
                 actual : str ='shot_statsbomb_xg',
                 predicted : str = 'xG',
                 bins : int = 20):
@@ -243,20 +238,23 @@ class Visualization:
         plt.title("Distribution of Absolute Error")
         plt.show()
 
-    def GxG_scatter(self):
+    def GxgScatter(self,
+                   xg_column : str = 'shot_statsbomb_xg',
+                   goal_column : str = 'goal'):
 
         GxG = self.df.groupBy("player",'team')\
-            .agg(F.sum("goal").alias("goals"),
-                    F.round(F.sum("shot_statsbomb_xg"),3).alias("xG"))\
+            .agg(F.sum(goal_column).alias("goals"),
+                 F.round(F.sum(xg_column),3).alias("xG"))\
             .filter((F.col('goals')>1) & (F.col('xG')>1))\
-            .withColumn('G-xG', F.round(F.col('goals') - F.col('xG'),5))\
+            .withColumn('G-xG',
+                        F.round(F.col('goals') - F.col('xG'),5))\
             .toPandas()
 
         GxG['Performance'] = np.where(GxG['G-xG'] < 0, 'Underperformer', 'Overperformer')
 
         fig = px.scatter(
             GxG,
-            x="goals",
+            x="Goals",
             y="xG",
             color="Performance",
             hover_data=["player"],
@@ -275,17 +273,35 @@ class Visualization:
     
     def ShotsDistribution(self,
                           columns : list[str] =SHOT_DIST_COLUMNS,
-                          val : str ='shot_statsbomb_xg'):
+                          val : str ='shot_statsbomb_xg',
+                          t : str = 'xg',
+                          size : int = 5,
+                          match_id : int | None = None,
+                          player_id : int | None = None,
+                          team_id : int | None = None,
+                          sample : int | None = None
+                          ):
 
-        df_s = self.df.select(columns).toPandas()
+        df = self.df
 
-        colors = {(0.00, 0.25): '#fcc4ad',
-                    (0.25, 0.50): '#fb694a',
-                    (0.50, 0.75): '#b11218',
-                    (0.75, 1.00): '#67000d'}
+        if team_id is not None:
+            df = df.filter(df.team_id == team_id)
+
+        if match_id is not None:
+            df = df.filter(df.match_id  == match_id)
+            
+        if player_id is not None:
+            df = df.filter(df.player_id == player_id)
+        
+        if sample is not None:
+            df = df.orderBy(F.rand()).limit(sample)
+
+        if df.limit(1).count() == 0:
+            raise ValueError("No shot data available for the given filter criteria.")
+
+        df = df.select(columns).toPandas()
 
         fig, ax = plt.subplots(1, 1, figsize=(18, 6))
-
         pitch = VerticalPitch(pad_bottom=0.5,
                                 half=True,
                                 corner_arcs=True,
@@ -293,19 +309,34 @@ class Visualization:
                                 pitch_type='statsbomb')
         pitch.draw(ax=ax)
 
-        legend_elements = []
+        if t =='xg':
+            colors = {(0.00, 0.25): '#fcc4ad',
+                      (0.25, 0.50): '#fb694a',
+                      (0.50, 0.75): '#b11218',
+                      (0.75, 1.00): '#67000d'}
+            title = 'xG Distribution'
+        elif t == 'goal':
+            colors = {0 : '#fb694a',
+                      1 : '#67000d'}
+            title = 'Goal Distribution'
+        else:
+            raise ValueError("Unknown type. Choose from ['xg', 'goal']")
 
+        legend_elements = []
         for key, value in colors.items():
 
-            df_1 = df_s[df_s[val].between(key[0], key[1])]
-
+            if t == 'xg':
+                df_1 = df[df[val].between(key[0], key[1])]
+                label = f"{key[0]:.2f} - {key[1]:.2f}"
+            else:
+                df_1 = df[df[val] == key]
+                label = "Goal" if key == 1 else "No goal"
+                
             pitch.scatter(df_1['shot_location_x'],
-                            df_1['shot_location_y'],
-                            ax=ax,
-                            s=3,
-                            c=value)
-
-            label = f"{key[0]:.2f}–{key[1]:.2f}"
+                        df_1['shot_location_y'],
+                        ax=ax,
+                        s=size,
+                        c=value)
 
             handle = mlines.Line2D([], [],
                                     marker='o',
@@ -316,6 +347,6 @@ class Visualization:
 
             legend_elements.append(handle)
 
-        ax.legend(handles=legend_elements, title='xG Range', loc='lower right')
+        ax.legend(handles=legend_elements, title=title, loc='lower right')
         plt.show()
-        
+
