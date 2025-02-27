@@ -240,12 +240,14 @@ class Visualization:
 
     def GxgScatter(self,
                    xg_column : str = 'shot_statsbomb_xg',
-                   goal_column : str = 'goal'):
+                   goal_column : str = 'goal',
+                   min_goal : int = 1,
+                   min_xg : float = 1):
 
         GxG = self.df.groupBy("player",'team')\
             .agg(F.sum(goal_column).alias("goals"),
                  F.round(F.sum(xg_column),3).alias("xG"))\
-            .filter((F.col('goals')>1) & (F.col('xG')>1))\
+            .filter((F.col('goals') > min_goal) & (F.col('xG') > min_xg))\
             .withColumn('G-xG',
                         F.round(F.col('goals') - F.col('xG'),5))\
             .toPandas()
@@ -254,7 +256,7 @@ class Visualization:
 
         fig = px.scatter(
             GxG,
-            x="Goals",
+            x="goals",
             y="xG",
             color="Performance",
             hover_data=["player"],
