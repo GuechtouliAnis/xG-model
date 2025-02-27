@@ -1,12 +1,11 @@
 import matplotlib.pyplot as plt
 from pyspark.ml.classification import LogisticRegression, RandomForestClassifier, MultilayerPerceptronClassifier
-from pyspark.ml.classification import GBTClassifier, NaiveBayes, DecisionTreeClassifier, LinearSVC
+from pyspark.ml.classification import GBTClassifier, DecisionTreeClassifier, LinearSVC
 import pyspark.sql.functions as F
 import pyspark.sql.types as T
 import pandas as pd
 from pyspark.sql import DataFrame
 from .xG_constants import *
-
 
 class ModelTrainer:
     def __init__(self,
@@ -18,6 +17,7 @@ class ModelTrainer:
                  layers : list[int] | None = None,
                  num_trees : int | None = None,
                  max_iter : int = 100):
+        
         """
         Initializes and trains a model, and calculates evaluation metrics.
 
@@ -52,6 +52,7 @@ class ModelTrainer:
         self.goal_proba()
 
     def initialize_model(self):
+        
         """Initialize the model based on model_type."""
         
         if self.model_type == 'logistic':
@@ -66,11 +67,11 @@ class ModelTrainer:
             if not self.layers:
                 raise ValueError("The 'layers' parameter must be specified for the Multilayer Perceptron model.")            
             model = MultilayerPerceptronClassifier(featuresCol=self.features_col,
-                                                labelCol=self.label_col,
-                                                maxIter=self.max_iter,
-                                                layers=self.layers,
-                                                blockSize=128,
-                                                seed=1234)
+                                                   labelCol=self.label_col,
+                                                   maxIter=self.max_iter,
+                                                   layers=self.layers,
+                                                   blockSize=128,
+                                                   seed=1234)
         elif self.model_type == 'gbt':
             model = GBTClassifier(featuresCol=self.features_col,
                                   labelCol=self.label_col,
@@ -83,22 +84,26 @@ class ModelTrainer:
             model = LinearSVC(featuresCol=self.features_col,
                               labelCol=self.label_col)
         else:
-            raise ValueError("Unknown model type. Choose from ['logistic', 'rf', 'mlp', 'gbt', 'nb', 'dt', 'svm']")
+            raise ValueError("Unknown model type. Choose from ['logistic', 'rf', 'mlp', 'gbt', 'dt', 'svm']")
+
         return model
 
     def train_model(self):
+        
         """Train the model on the training data."""
         
         model_fitted = self.model.fit(self.train_data)
         return model_fitted
 
     def get_predictions(self):
+        
         """Make predictions on the test data."""
         
         predictions = self.model_trained.transform(self.test_data)
         return predictions
     
     def get_feature_importance(self):
+        
         """
         Retrieves feature importance or coefficients for the trained model.
 
@@ -114,10 +119,12 @@ class ModelTrainer:
             importance = self.model_trained.coefficients.toArray()
         else:
             raise AttributeError(f"Feature importance or coefficients are not available for the {self.model_type} model.")
+
         return importance
     
     def feature_importance(self,
                            feature_names : list[str] = FEATURES) -> pd.DataFrame:
+
         """
         Converts feature importance to a DataFrame.
 
@@ -131,6 +138,7 @@ class ModelTrainer:
         return df
     
     def goal_proba(self):
+
         """
         Processes the goal probability column in the given df DataFrame.
 

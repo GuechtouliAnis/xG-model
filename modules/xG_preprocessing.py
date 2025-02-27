@@ -9,7 +9,6 @@ from pyspark.sql import DataFrame, SparkSession
 from pyspark.ml.feature import VectorAssembler
 from .xG_constants import *
 
-# Match_id, Team id, Team
 class Preprocessing:
     def __init__(self,
                  spark : SparkSession,
