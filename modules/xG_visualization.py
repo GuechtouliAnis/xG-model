@@ -114,7 +114,94 @@ class Visualization:
         
         plt.title("Correlation Matrix")
         plt.show()
+
+    def confusion_matrix(self,
+                         actual : str = 'goal',
+                         predicted : str = 'prediction',
+                         cmap : str = 'Reds'):
         
+        """
+        Compute and visualize a confusion matrix based on actual and predicted values.
+
+        This method creates a confusion matrix by performing a crosstab on the specified actual and predicted
+        columns from the Spark DataFrame. The resulting matrix is then converted to a pandas DataFrame and visualized
+        as a heatmap using seaborn. The heatmap includes annotations for the count of instances, with axis labels set to
+        "Predicted" and "Actual" and an overall title "Confusion Matrix".
+
+        Parameters
+        ----------
+        actual : str, optional
+            The column name representing the true labels (default is 'goal').
+        predicted : str, optional
+            The column name representing the predicted labels (default is 'prediction').
+        cmap : str, optional
+            The colormap used for the heatmap visualization (default is 'Reds').
+
+        Returns
+        -------
+        None
+            The method displays the confusion matrix heatmap and does not return any value.
+        """
+
+        conf = self.df.crosstab(actual, predicted)
+
+        conf_pd = conf.toPandas().set_index(actual + '_' + predicted)
+
+        conf_pd.columns = conf_pd.columns.astype(int)
+
+        sns.heatmap(conf_pd,
+                    annot=True,
+                    fmt="d",
+                    cmap=cmap,
+                    vmin=0)
+
+        plt.xlabel("Predicted")
+        plt.ylabel("Actual")
+        plt.title("Confusion Matrix")
+        plt.show()
+
+    def error_dist(self,
+                   actual : str ='shot_statsbomb_xg',
+                   predicted : str = 'xG',
+                   bins : int = 20):
+        
+        """
+        Plot the distribution of absolute errors between actual and predicted xG values.
+
+        This method calculates the absolute error by subtracting the predicted xG from the actual xG values,
+        rounding the result to five decimal places. It then converts the computed absolute errors to a pandas
+        DataFrame and plots a histogram to visualize the frequency distribution of these errors.
+
+        Parameters
+        ----------
+        actual : str, optional
+            The column name for the actual xG values (default is 'shot_statsbomb_xg').
+        predicted : str, optional
+            The column name for the predicted xG values (default is 'xG').
+        bins : int, optional
+            The number of bins to use in the histogram (default is 20).
+
+        Returns
+        -------
+        None
+            The function displays the histogram plot and does not return any value.
+        """
+
+        df = self.df.withColumn(
+            "Absolute_Error",
+            F.round(F.abs(F.col(actual) - F.col(predicted)),5))
+        
+        ae_pd = df.select("Absolute_Error").toPandas()
+
+        plt.hist(ae_pd["Absolute_Error"],
+                 bins=bins,
+                 edgecolor="black")
+        
+        plt.xlabel("Absolute Error")
+        plt.ylabel("Frequency")
+        plt.title("Distribution of Absolute Error")
+        plt.show()
+
     def shot_frame(self,
                    shot_id : str,
                    show_angle : bool = False,
@@ -219,7 +306,7 @@ class Visualization:
                                           label=legend_text)
 
             ax.legend(handles=[legend_handle],
-                      loc='upper left',
+                      loc='lower right',
                       handlelength=0,
                       handletextpad=0,
                       frameon=True,
@@ -256,8 +343,11 @@ class Visualization:
             The method displays the heatmaps and does not return any value.
         """
 
-        df = self.df.select(x,y,target).toPandas()
-        pitch = VerticalPitch(line_color='black', half=True, pitch_type='statsbomb', line_zorder=2)
+        df = self.df.select(x, y, target).toPandas()
+        pitch = VerticalPitch(line_color='black',
+                              half=True,
+                              pitch_type='statsbomb',
+                              line_zorder=2)
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 5))
 
         pitch.draw(ax=ax1)
@@ -291,51 +381,6 @@ class Visualization:
         ax2.set_title("Goals Heatmap")
         
         fig.suptitle("Comparison of Shots and Goals Heatmaps", fontsize=16)
-        plt.show()
-
-    def confusion_matrix(self,
-                         actual : str = 'goal',
-                         predicted : str = 'prediction',
-                         cmap : str = 'Reds'):
-        
-        """
-        Compute and visualize a confusion matrix based on actual and predicted values.
-
-        This method creates a confusion matrix by performing a crosstab on the specified actual and predicted
-        columns from the Spark DataFrame. The resulting matrix is then converted to a pandas DataFrame and visualized
-        as a heatmap using seaborn. The heatmap includes annotations for the count of instances, with axis labels set to
-        "Predicted" and "Actual" and an overall title "Confusion Matrix".
-
-        Parameters
-        ----------
-        actual : str, optional
-            The column name representing the true labels (default is 'goal').
-        predicted : str, optional
-            The column name representing the predicted labels (default is 'prediction').
-        cmap : str, optional
-            The colormap used for the heatmap visualization (default is 'Reds').
-
-        Returns
-        -------
-        None
-            The method displays the confusion matrix heatmap and does not return any value.
-        """
-
-        conf = self.df.crosstab(actual, predicted)
-
-        conf_pd = conf.toPandas().set_index(actual + '_' + predicted)
-
-        conf_pd.columns = conf_pd.columns.astype(int)
-
-        sns.heatmap(conf_pd,
-                    annot=True,
-                    fmt="d",
-                    cmap=cmap,
-                    vmin=0)
-
-        plt.xlabel("Predicted")
-        plt.ylabel("Actual")
-        plt.title("Confusion Matrix")
         plt.show()
 
     def xG_timeline(self,
@@ -444,53 +489,12 @@ class Visualization:
         plt.tight_layout()
         plt.show()
 
-    def error_dist(self,
-                   actual : str ='shot_statsbomb_xg',
-                   predicted : str = 'xG',
-                   bins : int = 20):
-        
-        """
-        Plot the distribution of absolute errors between actual and predicted xG values.
-
-        This method calculates the absolute error by subtracting the predicted xG from the actual xG values,
-        rounding the result to five decimal places. It then converts the computed absolute errors to a pandas
-        DataFrame and plots a histogram to visualize the frequency distribution of these errors.
-
-        Parameters
-        ----------
-        actual : str, optional
-            The column name for the actual xG values (default is 'shot_statsbomb_xg').
-        predicted : str, optional
-            The column name for the predicted xG values (default is 'xG').
-        bins : int, optional
-            The number of bins to use in the histogram (default is 20).
-
-        Returns
-        -------
-        None
-            The function displays the histogram plot and does not return any value.
-        """
-
-        df = self.df.withColumn(
-            "Absolute_Error",
-            F.round(F.abs(F.col(actual) - F.col(predicted)),5))
-        
-        rmse_pd = df.select("Absolute_Error").toPandas()
-
-        plt.hist(rmse_pd["Absolute_Error"],
-                 bins=bins,
-                 edgecolor="black")
-        
-        plt.xlabel("Absolute Error")
-        plt.ylabel("Frequency")
-        plt.title("Distribution of Absolute Error")
-        plt.show()
-
     def gxg_scatter(self,
                     xg_column : str = 'shot_statsbomb_xg',
                     goal_column : str = 'goal',
                     min_goal : int = 1,
-                    min_xg : float = 1):
+                    min_xg : float = 1,
+                    t : str = 'player'):
         
         """
         Generate an interactive scatter plot comparing goals and xG for players.
@@ -512,6 +516,9 @@ class Visualization:
             The minimum number of goals required for a player to be included in the plot (default is 1).
         min_xg : float, optional
             The minimum cumulative xG required for a player to be included in the plot (default is 1).
+        t : str, optional
+            Specifies the type of aggregation for the scatter plot: 'player' to aggregate by players 
+            or 'team' to aggregate by clubs (default is 'player').
 
         Returns
         -------
@@ -519,15 +526,29 @@ class Visualization:
             The function displays an interactive scatter plot and does not return any value.
         """
 
-        GxG = self.df.groupBy("player",'team')\
-            .agg(F.sum(goal_column).alias("goals"),
-                 F.round(
-                     F.sum(xg_column),3).alias("xG"))\
-            .filter((F.col('goals') > min_goal) & (F.col('xG') > min_xg))\
-            .withColumn('G-xG',
-                        F.round(F.col('goals') - F.col('xG'),5))\
-            .toPandas()
-
+        if t == 'player':
+            GxG = self.df.groupBy("player","team")\
+                .agg(F.sum(goal_column).alias("goals"),
+                    F.round(
+                        F.sum(xg_column),3).alias("xG"))\
+                .filter((F.col('goals') > min_goal) & (F.col('xG') > min_xg))\
+                .withColumn('G-xG',
+                            F.round(F.col('goals') - F.col('xG'),5))\
+                .toPandas()
+            hover_col = "player"
+        elif t == 'team':
+            GxG = self.df.groupBy("team")\
+                .agg(F.sum(goal_column).alias("goals"),
+                    F.round(
+                        F.sum(xg_column),3).alias("xG"))\
+                .filter((F.col('goals') > min_goal) & (F.col('xG') > min_xg))\
+                .withColumn('G-xG',
+                            F.round(F.col('goals') - F.col('xG'),5))\
+                .toPandas()
+            hover_col = "team"
+        else:
+            raise ValueError("Unknown t value. Choose from ['player', 'team']")
+                
         GxG['Performance'] = np.where(GxG['G-xG'] < 0, 'Underperformer', 'Overperformer')
 
         fig = px.scatter(
@@ -535,9 +556,9 @@ class Visualization:
             x="goals",
             y="xG",
             color="Performance",
-            hover_data=["player"],
+            hover_data=[hover_col],
             title="Goals vs. xG Scatter Plot",
-            labels={"player": "Player", "xG": "xG", "goals": "Goals"},
+            labels={t: t.capitalize(), "xG": "xG", "goals": "Goals"},
             color_discrete_map={'Underperformer': 'red',
                                 'Overperformer': 'green'})
 
