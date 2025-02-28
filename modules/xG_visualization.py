@@ -202,119 +202,6 @@ class Visualization:
         plt.title("Distribution of Absolute Error")
         plt.show()
 
-    def shot_frame(self,
-                   shot_id : str,
-                   show_angle : bool = False,
-                   show_players : bool = True,
-                   show_info : bool = True):
-        
-        """
-        Visualize a shot event's spatial details and freeze frame on a football pitch.
-
-        This method retrieves details for the specified shot event using the provided shot_id
-        from the primary DataFrame. It then uses the associated shot freeze frame data (if available)
-        to plot the shot's starting and ending locations, draw the shot's trajectory, and optionally
-        overlay the goal angle and positions of players (teammates and opponents) on a football pitch
-        using mplsoccer's VerticalPitch. Additionally, key shot metrics such as xG, distance to goal,
-        shot angle, number of players inside the shot area, and shot outcome are displayed as a legend.
-
-        Parameters
-        ----------
-        shot_id : str
-            The unique identifier of the shot event to be visualized.
-        show_angle : bool, optional
-            Flag to indicate whether the goal angle should be overlaid on the pitch. Default is False.
-        show_players : bool, optional
-            Flag to indicate whether to plot the positions of players (teammates and opponents) from the freeze frame data.
-            Default is True.
-        show_info : bool, optional
-            Flag to indicate whether to display shot information (e.g., xG, distance, angle, players in area, outcome)
-            as a legend on the plot. Default is True.
-
-        Raises
-        ------
-        ValueError
-            If the 'shot_frame_df' attribute is not available in the object, indicating that freeze frame data is missing.
-
-        Returns
-        -------
-        None
-            Displays the plot without returning any value.
-        """
-        
-        if self.shot_frame_df is None:
-            raise ValueError('Object has no attribute shot_frame_df')
-        
-        row = self.df.filter(self.df.id == shot_id).collect()[0]
-        color = '#ad993c' if row['goal'] == 1 else '#ba4f45'        
-        shot_data = self.shot_frame_df[self.shot_frame_df['Shot_id'] == row.id]
-
-        fig, ax = plt.subplots(1, 1, figsize=(18, 6))
-        pitch = VerticalPitch(pad_bottom=0.5,
-                              half=True,
-                              corner_arcs=True,
-                              goal_type='box',
-                              pitch_type='statsbomb')
-        pitch.draw(ax=ax)
-
-        pitch.scatter(row['shot_location_x'], row['shot_location_y'],
-                      color='orange',
-                      ax=ax,
-                      zorder=4)
-        
-        pitch.arrows(row['shot_location_x'], row['shot_location_y'],
-                     row['shot_end_x'], row['shot_end_y'],
-                     headwidth=3,
-                     headlength=2,
-                     width = 2,
-                     color=color,
-                     ax=ax)
-        
-        if show_angle:            
-            pitch.goal_angle(x=row['shot_location_x'], y=row['shot_location_y'],
-                             goal='right',
-                             color='blue',
-                             alpha=0.3,
-                             zorder=1,
-                             ax=ax)
-            
-        if show_players:
-            teammates = shot_data[shot_data['teammate'] == 'True']
-            opponents = shot_data[shot_data['teammate'] != 'True']
-            
-            pitch.scatter(teammates['x'], teammates['y'],
-                          color='green',
-                          s=30,
-                          zorder=2,
-                          ax=ax)
-            pitch.scatter(opponents['x'], opponents['y'],
-                          color='red',
-                          s=30,
-                          zorder=2,
-                          ax=ax)
-
-        if show_info:
-            shot_info = [f"xG: {row['shot_statsbomb_xg']:.2f}",
-                         f"Distance: {row['distance_to_goal']:.2f}",
-                         f"Angle: {row['shot_angle']:.2f}°",
-                         f"Players in area: {row['players_inside_area']}",
-                         f"Outcome: {row['shot_outcome']}"]
-            
-            legend_text = "\n".join(shot_info)
-            legend_handle = mlines.Line2D([], [],
-                                          color='none',
-                                          label=legend_text)
-
-            ax.legend(handles=[legend_handle],
-                      loc='lower right',
-                      handlelength=0,
-                      handletextpad=0,
-                      frameon=True,
-                      borderpad=0.5,
-                      labelspacing=0.3)
-            
-        plt.show()
-        
     def shot_goal_heatmap(self,
                           x : str = 'shot_location_x',
                           y : str ='shot_location_y',
@@ -383,193 +270,6 @@ class Visualization:
         fig.suptitle("Comparison of Shots and Goals Heatmaps", fontsize=16)
         plt.show()
 
-    def xG_timeline(self,
-                    match_id : int,
-                    columns : list[str] = CUMULATIVE_XG_COLUMNS):
-        
-        """
-        Plot cumulative xG timelines for a given match.
-
-        This method filters the shot event data for the specified match_id and computes cumulative sums for both
-        Statsbomb xG and predicted xG using a window function partitioned by match and team, ordered by minute and second.
-        The cumulative values are merged with a complete timeline of minutes and seconds to fill in any gaps via forward
-        filling. For each team, the method plots two subplots: one for the cumulative Statsbomb xG and another for the
-        cumulative predicted xG, highlighting moments when goals occurred. A vertical line at minute 45 is added to both
-        plots to denote halftime.
-
-        Parameters
-        ----------
-        match_id : int
-            The unique identifier for the match to be visualized.
-        columns : list[str], optional
-            A list of column names used in the timeline visualization, defaulting to CUMULATIVE_XG_COLUMNS.
-
-        Returns
-        -------
-        None
-            This method displays the cumulative xG timeline plots and does not return any value.
-        """
-
-        df = self.df.filter(F.col('match_id') == match_id)
-
-        window_spec = Window.partitionBy('match_id', 'team') \
-                            .orderBy('minute', 'second') \
-                            .rowsBetween(Window.unboundedPreceding,
-                                         Window.currentRow)
-
-        df = df.withColumn('sb_CxG',
-                           F.sum('shot_statsbomb_xg').over(window_spec)) \
-               .withColumn('CxG',
-                           F.sum('xG').over(window_spec))
-
-        df_p = df.select(columns).orderBy('minute', 'second').toPandas()
-
-        teams = df_p[~df_p['team'].isna()]['team'].unique()
-
-        i = 91 if df_p['minute'].max() < 90 else df_p['minute'].max() + 1
-
-        mins_range = np.arange(0, i)
-        sec_range = np.arange(0, 60)
-
-        ft = pd.DataFrame([(m, s) for m in mins_range for s in sec_range], columns=['minute', 'second'])
-
-        max_sb = max_cxg = 1
-
-        fig, (ax1, ax2) = plt.subplots(ncols=2,
-                                       nrows=1,
-                                       figsize=(14, 7))
-
-        for team in teams:
-            df_team = df_p[df_p['team'] == team]
-
-            df_team = ft.merge(df_team,
-                               on=('minute', 'second'),
-                               how='left')
-
-            df_team['sb_CxG'] = df_team['sb_CxG'].ffill().fillna(0)
-            df_team['CxG'] = df_team['CxG'].ffill().fillna(0)
-            df_team['goal'] = df_team['goal'].fillna(0).astype(int)
-            
-            df_team['time'] = df_team['minute'] + round(df_team['second'] / 60, 2)
-            
-            max_sb = max(max_sb, df_team['sb_CxG'].max())
-            max_cxg = max(max_cxg, df_team['CxG'].max())
-            
-            ax1.plot(df_team['time'],
-                     df_team['sb_CxG'],
-                     label=team)
-            ax1.scatter(df_team[df_team['goal'] == 1]['time'],
-                        df_team[df_team['goal'] == 1]['sb_CxG'])
-            
-            ax2.plot(df_team['time'],
-                     df_team['CxG'],
-                     label=team)
-            ax2.scatter(df_team[df_team['goal'] == 1]['time'],
-                        df_team[df_team['goal'] == 1]['CxG'])
-
-        max_y = max(max_sb, max_cxg)
-
-        for ax in [ax1, ax2]:
-            ax.axvline(x=45,
-                       color='black',
-                       linestyle='--')
-            ax.set_xticks([15, 30, 45, 60, 75, 90])
-
-            ax.set_xlim(0, i - 1)
-            ax.set_ylim(0, max_y + 0.3)
-
-            ax.legend(loc='upper left')
-            ax.set_xlabel('Minutes')
-
-        ax1.set_ylabel('statsbomb xG')
-        ax1.set_title('Statsbomb xG Cumulative Timeline')
-        ax2.set_ylabel('xG')
-        ax2.set_title('Predicted xG Cumulative Timeline')
-
-        plt.tight_layout()
-        plt.show()
-
-    def gxg_scatter(self,
-                    xg_column : str = 'shot_statsbomb_xg',
-                    goal_column : str = 'goal',
-                    min_goal : int = 1,
-                    min_xg : float = 1,
-                    t : str = 'player'):
-        
-        """
-        Generate an interactive scatter plot comparing goals and xG for players.
-
-        This method aggregates shot event data by player and team from the underlying Spark DataFrame,
-        summing goals and xG values. It filters out players whose cumulative goals or xG do not exceed the
-        specified minimum thresholds (min_goal and min_xg) and computes the difference between goals and xG ('G-xG').
-        Players are then classified as 'Underperformer' if the 'G-xG' value is negative and 'Overperformer' otherwise.
-        The method creates an interactive scatter plot using Plotly Express, plotting goals on the x-axis and xG on
-        the y-axis, with points colored by the performance classification. Hover data displays the player's name.
-
-        Parameters
-        ----------
-        xg_column : str, optional
-            The column name for xG values (default is 'shot_statsbomb_xg').
-        goal_column : str, optional
-            The column name for goal outcomes (default is 'goal').
-        min_goal : int, optional
-            The minimum number of goals required for a player to be included in the plot (default is 1).
-        min_xg : float, optional
-            The minimum cumulative xG required for a player to be included in the plot (default is 1).
-        t : str, optional
-            Specifies the type of aggregation for the scatter plot: 'player' to aggregate by players 
-            or 'team' to aggregate by clubs (default is 'player').
-
-        Returns
-        -------
-        None
-            The function displays an interactive scatter plot and does not return any value.
-        """
-
-        if t == 'player':
-            GxG = self.df.groupBy("player","team")\
-                .agg(F.sum(goal_column).alias("goals"),
-                    F.round(
-                        F.sum(xg_column),3).alias("xG"))\
-                .filter((F.col('goals') > min_goal) & (F.col('xG') > min_xg))\
-                .withColumn('G-xG',
-                            F.round(F.col('goals') - F.col('xG'),5))\
-                .toPandas()
-            hover_col = "player"
-        elif t == 'team':
-            GxG = self.df.groupBy("team")\
-                .agg(F.sum(goal_column).alias("goals"),
-                    F.round(
-                        F.sum(xg_column),3).alias("xG"))\
-                .filter((F.col('goals') > min_goal) & (F.col('xG') > min_xg))\
-                .withColumn('G-xG',
-                            F.round(F.col('goals') - F.col('xG'),5))\
-                .toPandas()
-            hover_col = "team"
-        else:
-            raise ValueError("Unknown t value. Choose from ['player', 'team']")
-                
-        GxG['Performance'] = np.where(GxG['G-xG'] < 0, 'Underperformer', 'Overperformer')
-
-        fig = px.scatter(
-            GxG,
-            x="goals",
-            y="xG",
-            color="Performance",
-            hover_data=[hover_col],
-            title="Goals vs. xG Scatter Plot",
-            labels={t: t.capitalize(), "xG": "xG", "goals": "Goals"},
-            color_discrete_map={'Underperformer': 'red',
-                                'Overperformer': 'green'})
-
-        fig.update_layout(
-            height=700,
-            width=700,
-            xaxis_range=[0,GxG['goals'].max()+2],
-            yaxis_range=[0,GxG['xG'].max()+2])
-
-        fig.show()
-    
     def shot_distribution(self,
                           columns : list[str] = SHOT_DIST_COLUMNS,
                           val : str = 'shot_statsbomb_xg',
@@ -687,4 +387,309 @@ class Visualization:
         ax.legend(handles=legend_elements,
                   title=title,
                   loc='lower right')
+        plt.show()
+
+    def shot_frame(self,
+                   shot_id : str,
+                   show_angle : bool = False,
+                   show_players : bool = True,
+                   show_info : bool = True):
+        
+        """
+        Visualize a shot event's spatial details and freeze frame on a football pitch.
+
+        This method retrieves details for the specified shot event using the provided shot_id
+        from the primary DataFrame. It then uses the associated shot freeze frame data (if available)
+        to plot the shot's starting and ending locations, draw the shot's trajectory, and optionally
+        overlay the goal angle and positions of players (teammates and opponents) on a football pitch
+        using mplsoccer's VerticalPitch. Additionally, key shot metrics such as xG, distance to goal,
+        shot angle, number of players inside the shot area, and shot outcome are displayed as a legend.
+
+        Parameters
+        ----------
+        shot_id : str
+            The unique identifier of the shot event to be visualized.
+        show_angle : bool, optional
+            Flag to indicate whether the goal angle should be overlaid on the pitch. Default is False.
+        show_players : bool, optional
+            Flag to indicate whether to plot the positions of players (teammates and opponents) from the freeze frame data.
+            Default is True.
+        show_info : bool, optional
+            Flag to indicate whether to display shot information (e.g., xG, distance, angle, players in area, outcome)
+            as a legend on the plot. Default is True.
+
+        Raises
+        ------
+        ValueError
+            If the 'shot_frame_df' attribute is not available in the object, indicating that freeze frame data is missing.
+
+        Returns
+        -------
+        None
+            Displays the plot without returning any value.
+        """
+        
+        if self.shot_frame_df is None:
+            raise ValueError('Object has no attribute shot_frame_df')
+        
+        row = self.df.filter(self.df.id == shot_id).collect()[0]
+        color = '#ad993c' if row['goal'] == 1 else '#ba4f45'        
+        shot_data = self.shot_frame_df[self.shot_frame_df['Shot_id'] == row.id]
+
+        fig, ax = plt.subplots(1, 1, figsize=(18, 6))
+        pitch = VerticalPitch(pad_bottom=0.5,
+                              half=True,
+                              corner_arcs=True,
+                              goal_type='box',
+                              pitch_type='statsbomb')
+        pitch.draw(ax=ax)
+
+        pitch.scatter(row['shot_location_x'], row['shot_location_y'],
+                      color='orange',
+                      ax=ax,
+                      zorder=4)
+        
+        pitch.arrows(row['shot_location_x'], row['shot_location_y'],
+                     row['shot_end_x'], row['shot_end_y'],
+                     headwidth=3,
+                     headlength=2,
+                     width = 2,
+                     color=color,
+                     ax=ax)
+        
+        if show_angle:            
+            pitch.goal_angle(x=row['shot_location_x'], y=row['shot_location_y'],
+                             goal='right',
+                             color='blue',
+                             alpha=0.3,
+                             zorder=1,
+                             ax=ax)
+            
+        if show_players:
+            teammates = shot_data[shot_data['teammate'] == 'True']
+            opponents = shot_data[shot_data['teammate'] != 'True']
+            
+            pitch.scatter(teammates['x'], teammates['y'],
+                          color='green',
+                          s=30,
+                          zorder=2,
+                          ax=ax)
+            pitch.scatter(opponents['x'], opponents['y'],
+                          color='red',
+                          s=30,
+                          zorder=2,
+                          ax=ax)
+
+        if show_info:
+            shot_info = [f"xG: {row['shot_statsbomb_xg']:.2f}",
+                         f"Distance: {row['distance_to_goal']:.2f}",
+                         f"Angle: {row['shot_angle']:.2f}°",
+                         f"Players in area: {row['players_inside_area']}",
+                         f"Outcome: {row['shot_outcome']}"]
+            
+            legend_text = "\n".join(shot_info)
+            legend_handle = mlines.Line2D([], [],
+                                          color='none',
+                                          label=legend_text)
+
+            ax.legend(handles=[legend_handle],
+                      loc='lower right',
+                      handlelength=0,
+                      handletextpad=0,
+                      frameon=True,
+                      borderpad=0.5,
+                      labelspacing=0.3)
+            
+        plt.show()
+
+    def gxg_scatter(self,
+                    xg_column : str = 'shot_statsbomb_xg',
+                    goal_column : str = 'goal',
+                    min_goal : int = 1,
+                    min_xg : float = 1,
+                    t : str = 'player'):
+        
+        """
+        Generate an interactive scatter plot comparing goals and xG for players.
+
+        This method aggregates shot event data by player and team from the underlying Spark DataFrame,
+        summing goals and xG values. It filters out players whose cumulative goals or xG do not exceed the
+        specified minimum thresholds (min_goal and min_xg) and computes the difference between goals and xG ('G-xG').
+        Players are then classified as 'Underperformer' if the 'G-xG' value is negative and 'Overperformer' otherwise.
+        The method creates an interactive scatter plot using Plotly Express, plotting goals on the x-axis and xG on
+        the y-axis, with points colored by the performance classification. Hover data displays the player's name.
+
+        Parameters
+        ----------
+        xg_column : str, optional
+            The column name for xG values (default is 'shot_statsbomb_xg').
+        goal_column : str, optional
+            The column name for goal outcomes (default is 'goal').
+        min_goal : int, optional
+            The minimum number of goals required for a player to be included in the plot (default is 1).
+        min_xg : float, optional
+            The minimum cumulative xG required for a player to be included in the plot (default is 1).
+        t : str, optional
+            Specifies the type of aggregation for the scatter plot: 'player' to aggregate by players 
+            or 'team' to aggregate by clubs (default is 'player').
+
+        Returns
+        -------
+        None
+            The function displays an interactive scatter plot and does not return any value.
+        """
+
+        if t == 'player':
+            GxG = self.df.groupBy("player","team")\
+                .agg(F.sum(goal_column).alias("goals"),
+                    F.round(
+                        F.sum(xg_column),3).alias("xG"))\
+                .filter((F.col('goals') > min_goal) & (F.col('xG') > min_xg))\
+                .withColumn('G-xG',
+                            F.round(F.col('goals') - F.col('xG'),5))\
+                .toPandas()
+            hover_col = "player"
+        elif t == 'team':
+            GxG = self.df.groupBy("team")\
+                .agg(F.sum(goal_column).alias("goals"),
+                    F.round(
+                        F.sum(xg_column),3).alias("xG"))\
+                .filter((F.col('goals') > min_goal) & (F.col('xG') > min_xg))\
+                .withColumn('G-xG',
+                            F.round(F.col('goals') - F.col('xG'),5))\
+                .toPandas()
+            hover_col = "team"
+        else:
+            raise ValueError("Unknown t value. Choose from ['player', 'team']")
+                
+        GxG['Performance'] = np.where(GxG['G-xG'] < 0, 'Underperformer', 'Overperformer')
+
+        fig = px.scatter(
+            GxG,
+            x="goals",
+            y="xG",
+            color="Performance",
+            hover_data=[hover_col],
+            title="Goals vs. xG Scatter Plot",
+            labels={t: t.capitalize(), "xG": "xG", "goals": "Goals"},
+            color_discrete_map={'Underperformer': 'red',
+                                'Overperformer': 'green'})
+
+        fig.update_layout(
+            height=700,
+            width=700,
+            xaxis_range=[0,GxG['goals'].max()+2],
+            yaxis_range=[0,GxG['xG'].max()+2])
+
+        fig.show()
+        
+    def xG_timeline(self,
+                    match_id : int | None = None,
+                    columns : list[str] = CUMULATIVE_XG_COLUMNS):
+        
+        """
+        Plot cumulative xG timelines for a given match.
+
+        This method filters the shot event data for the specified match_id and computes cumulative sums for both
+        Statsbomb xG and predicted xG using a window function partitioned by match and team, ordered by minute and second.
+        The cumulative values are merged with a complete timeline of minutes and seconds to fill in any gaps via forward
+        filling. For each team, the method plots two subplots: one for the cumulative Statsbomb xG and another for the
+        cumulative predicted xG, highlighting moments when goals occurred. A vertical line at minute 45 is added to both
+        plots to denote halftime.
+
+        Parameters
+        ----------
+        match_id : int
+            The unique identifier for the match to be visualized.
+        columns : list[str], optional
+            A list of column names used in the timeline visualization, defaulting to CUMULATIVE_XG_COLUMNS.
+
+        Returns
+        -------
+        None
+            This method displays the cumulative xG timeline plots and does not return any value.
+        """
+        if match_id is not None:
+            df = self.df.filter(F.col('match_id') == match_id)
+            if df.limit(1).count() == 0:
+                raise ValueError("No data available for the given match_id.")
+        else:
+            random_match_id = self.df.select("match_id").orderBy(F.rand()).limit(1).collect()[0]["match_id"]
+            df = self.df.filter(F.col('match_id') == random_match_id)
+            
+        window_spec = Window.partitionBy('match_id', 'team') \
+                            .orderBy('minute', 'second') \
+                            .rowsBetween(Window.unboundedPreceding,
+                                         Window.currentRow)
+
+        df = df.withColumn('sb_CxG',
+                           F.sum('shot_statsbomb_xg').over(window_spec)) \
+               .withColumn('CxG',
+                           F.sum('xG').over(window_spec))
+
+        df_p = df.select(columns).orderBy('minute', 'second').toPandas()
+
+        teams = df_p[~df_p['team'].isna()]['team'].unique()
+
+        i = 91 if df_p['minute'].max() < 90 else df_p['minute'].max() + 1
+
+        mins_range = np.arange(0, i)
+        sec_range = np.arange(0, 60)
+
+        ft = pd.DataFrame([(m, s) for m in mins_range for s in sec_range], columns=['minute', 'second'])
+
+        max_sb = max_cxg = 1
+
+        fig, (ax1, ax2) = plt.subplots(ncols=2,
+                                       nrows=1,
+                                       figsize=(14, 7))
+
+        for team in teams:
+            df_team = df_p[df_p['team'] == team]
+
+            df_team = ft.merge(df_team,
+                               on=('minute', 'second'),
+                               how='left')
+
+            df_team['sb_CxG'] = df_team['sb_CxG'].ffill().fillna(0)
+            df_team['CxG'] = df_team['CxG'].ffill().fillna(0)
+            df_team['goal'] = df_team['goal'].fillna(0).astype(int)
+            
+            df_team['time'] = df_team['minute'] + round(df_team['second'] / 60, 2)
+            
+            max_sb = max(max_sb, df_team['sb_CxG'].max())
+            max_cxg = max(max_cxg, df_team['CxG'].max())
+            
+            ax1.plot(df_team['time'],
+                     df_team['sb_CxG'],
+                     label=team)
+            ax1.scatter(df_team[df_team['goal'] == 1]['time'],
+                        df_team[df_team['goal'] == 1]['sb_CxG'])
+            
+            ax2.plot(df_team['time'],
+                     df_team['CxG'],
+                     label=team)
+            ax2.scatter(df_team[df_team['goal'] == 1]['time'],
+                        df_team[df_team['goal'] == 1]['CxG'])
+
+        max_y = max(max_sb, max_cxg)
+
+        for ax in [ax1, ax2]:
+            ax.axvline(x=45,
+                       color='black',
+                       linestyle='--')
+            ax.set_xticks([15, 30, 45, 60, 75, 90])
+
+            ax.set_xlim(0, i - 1)
+            ax.set_ylim(0, max_y + 0.3)
+
+            ax.legend(loc='upper left')
+            ax.set_xlabel('Minutes')
+
+        ax1.set_ylabel('statsbomb xG')
+        ax1.set_title('Statsbomb xG Cumulative Timeline')
+        ax2.set_ylabel('xG')
+        ax2.set_title('Predicted xG Cumulative Timeline')
+
+        plt.tight_layout()
         plt.show()

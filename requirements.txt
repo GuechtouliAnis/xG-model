@@ -4,3 +4,4 @@ pandas
 matplotlib
 mplsoccer
 statsbombpy
+plotly
