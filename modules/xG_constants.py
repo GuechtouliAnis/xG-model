@@ -79,6 +79,17 @@ FEATURES = [
     'pass_inswinging', 'pass_outswinging', 'pass_straight', 'pass_no_touch'
     ]
 
+FEATURES_NP = [
+    'distance_to_goal','shot_angle', # Spatial data
+    'preferred_foot_shot', # Boolean
+    'from_rp','from_fk','from_ti','from_corner','from_counter','from_gk','from_keeper','from_ko', # Play pattern
+    'header','corner_type','fk_type','pk_type', # Shot type
+    'half_volley_technique','volley_technique','lob_technique','overhead_technique','backheel_technique', # Shot technique
+    'diving_h_technique',
+    'under_pressure','shot_aerial_won','shot_first_time','shot_one_on_one','shot_open_goal','shot_follows_dribble', # Boolean
+    'players_inside_area', # Spatial data
+    ]
+
 CUMULATIVE_XG_COLUMNS = ['match_id', 'period', 'team', 'minute', 'second',
                          'shot_statsbomb_xg', 'xG', 'sb_CxG', 'CxG', 'goal']
 

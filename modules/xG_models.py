@@ -1,10 +1,10 @@
-import matplotlib.pyplot as plt
 from pyspark.ml.classification import LogisticRegression, RandomForestClassifier, MultilayerPerceptronClassifier
 from pyspark.ml.classification import GBTClassifier, DecisionTreeClassifier, LinearSVC
+from pyspark.sql import DataFrame
 import pyspark.sql.functions as F
 import pyspark.sql.types as T
 import pandas as pd
-from pyspark.sql import DataFrame
+import math
 from .xG_constants import *
 
 class ModelTrainer:
@@ -21,7 +21,7 @@ class ModelTrainer:
         """
         Initializes and trains a model, and calculates evaluation metrics.
 
-        :param model_type: Type of model to use (str). Options: 'logistic', 'rf', 'mlp', 'gbt', 'dt', 'svm'.
+        :param model_type: Type of model to use (str). Options: 'logistic', 'rf', 'mlp', 'gbt', 'dt'.
         :param train_data: The training dataset.
         :param test_data: The testing dataset.
         :param label_col: The name of the label column.
@@ -80,11 +80,8 @@ class ModelTrainer:
             model = DecisionTreeClassifier(featuresCol=self.features_col,
                                            labelCol=self.label_col,
                                            maxDepth=5)
-        elif self.model_type == 'svm':
-            model = LinearSVC(featuresCol=self.features_col,
-                              labelCol=self.label_col)
         else:
-            raise ValueError("Unknown model type. Choose from ['logistic', 'rf', 'mlp', 'gbt', 'dt', 'svm']")
+            raise ValueError("Unknown model type. Choose from ['logistic', 'rf', 'mlp', 'gbt', 'dt']")
 
         return model
 

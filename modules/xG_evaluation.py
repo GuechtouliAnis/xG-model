@@ -148,6 +148,7 @@ class ModelEvaluation:
         if self.model_type != "classification":
             raise ValueError("False Positive Rate (FPR) is only applicable for classification models.")
         tp, tn, fp, fn = self.metrics.values()
+        
         return fp / (fp + tn) if (fp + tn) > 0 else 0.0
     
     def fnr(self) -> float:
@@ -157,6 +158,7 @@ class ModelEvaluation:
         if self.model_type != "classification":
             raise ValueError("False Negative Rate (FNR) is only applicable for classification models.")
         tp, tn, fp, fn = self.metrics.values()
+        
         return fn / (fn + tp) if (fn + tp) > 0 else 0.0
     
     def get_all_metrics(self) -> dict:
