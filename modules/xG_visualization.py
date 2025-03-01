@@ -1,6 +1,5 @@
 import pyspark.sql.functions as F
 from pyspark.ml.stat import Correlation
-from pyspark.sql import DataFrame
 from pyspark.sql.window import Window
 from pyspark.ml.feature import VectorAssembler
 import numpy as np

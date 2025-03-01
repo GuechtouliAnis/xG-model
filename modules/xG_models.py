@@ -4,7 +4,6 @@ from pyspark.sql import DataFrame
 import pyspark.sql.functions as F
 import pyspark.sql.types as T
 import pandas as pd
-import math
 from .xG_constants import *
 
 class ModelTrainer:
