@@ -6,5 +6,5 @@ __pycache__
 *.db
 *.xlsx
 0-notes
-Dataset
-myenv
+data
+venv
