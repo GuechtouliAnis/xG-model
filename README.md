@@ -18,6 +18,8 @@ xG_Project/
 │
 ├── src/
 │   ├── __init__.py
+│   ├── constants.py
+│   ├── get_data.py
 │   ├── xG_constants.py
 │   ├── xG_preprocessing.py
 │   ├── xG_models.py
