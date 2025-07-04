@@ -151,4 +151,38 @@ def get_events(
     
     return events
 
-# === Events Data ===
+# === Frames Data ===
+def get_frames(df_matches: pd.DataFrame) -> pd.DataFrame:
+    """
+    Fetches and concatenates frame-level tracking data for each match.
+
+    Args:
+        df_matches (pd.DataFrame): A DataFrame containing a 'match_id' column.
+
+    Returns:
+        pd.DataFrame: Combined freeze-frame data across all matches, reset-indexed.
+
+    Notes:
+        - Uses `statsbombpy.sb.frames(match_id)` to fetch data.
+        - Skips matches that raise exceptions (e.g., frames not available).
+        - Logs progress every 50 matches.
+    """
+    df_frames = pd.DataFrame()
+
+    for i in range(len(df_matches)):
+        match_id = df_matches.loc[i, 'match_id']
+        try:
+            df = sb.frames(match_id)
+            if df_frames.empty:
+                df_frames = df
+            else:
+                df_frames = pd.concat([df_frames, df])
+        except Exception as e:
+            print(f"Skipped match_id={match_id} due to error: {e}")
+            continue
+
+        if i % 50 == 0:
+            print(f"[{i}] Processed match_id={match_id}")
+
+    df_frames.reset_index(drop=True, inplace=True)
+    return df_frames
