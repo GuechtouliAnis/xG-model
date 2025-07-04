@@ -9,12 +9,10 @@ xG_Project/
 ├── LICENSE
 ├── .gitignore
 ├── app.py
-├── TODO.txt
 │
 ├── data/
 │   ├── raw/
-│   ├── processed/
-│   └── README.md
+│   └── processed/
 │
 ├── src/
 │   ├── __init__.py
@@ -31,12 +29,7 @@ xG_Project/
 │   ├── 2_Model_Training_and_Evaluation.ipynb
 │   ├── 3_Tactical_Analysis_and_Insights.ipynb
 │   ├── data_splitter.ipynb
-│   ├── statsbombs_data.ipynb
-│   └── exploratory/
-│       ├── xG8.ipynb
-│       ├── xG_10_log_reg.ipynb
-│       ├── xG_analysis.ipynb
-│       └── xg_timeline.ipynb
+│   └── importing_data.ipynb
 │
 ├── models/
 │   ├── best_model.pkl
@@ -49,13 +42,12 @@ xG_Project/
 │   └── exports/
 │
 ├── docs/
-│   ├── statsbomb/
-│   │   ├── data_specification.pdf
-│   │   ├── events_specification.pdf
-│   │   └── 
-│   ├── data_dictionary.md
-│   ├── methodology.md
-│   └── feature_engineering.md
+│   ├── Open Data 360 Frames v1.0.0.pdf
+│   ├── Open Data Competitions v2.0.0.pdf
+│   ├── Open Data Events v4.0.0.pdf
+│   ├── Open Data Lineups v2.0.0
+│   ├── Open Data Matches v3.0.0.pdf
+│   └── StatsBomb Open Data Specification v1.1.pdf
 │
 └── tests/
     ├── __init__.py
