@@ -25,11 +25,8 @@ xG_Project/
 │   └── xG_visualization.py
 │
 ├── notebooks/
-│   ├── 1_Data_Preprocessing_and_EDA.ipynb
-│   ├── 2_Model_Training_and_Evaluation.ipynb
-│   ├── 3_Tactical_Analysis_and_Insights.ipynb
-│   ├── data_splitter.ipynb
-│   └── importing_data.ipynb
+│   ├── importing_data.ipynb
+│   └── splitting_data.ipynb
 │
 ├── models/
 │   ├── best_model.pkl
