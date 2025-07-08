@@ -40,7 +40,8 @@ def get_matches(competitions: pd.DataFrame) -> pd.DataFrame:
     return df_matches
 
 # === Lineups Data ===
-def concat_lineups(lineups_dict: dict, match_id: int) -> pd.DataFrame:
+def concat_lineups(lineups_dict: dict,
+                   match_id: int) -> pd.DataFrame:
     """
     Flattens the nested lineups dictionary for a single match into a DataFrame.
 
@@ -92,8 +93,7 @@ def get_events(
     df_matches: pd.DataFrame,
     std_cols: list[str],
     start_i: int,
-    end_i: int,
-) -> None:
+    end_i: int) -> None:
     """
     Fetches event data for a range of matches, standardizes columns, and exports to CSV.
 
