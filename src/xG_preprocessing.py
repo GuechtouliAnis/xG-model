@@ -7,7 +7,7 @@ import pyspark.sql.functions as F
 import pyspark.sql.types as T
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.ml.feature import VectorAssembler
-from .xG_constants import *
+from .constants import *
 
 class Preprocessing:
     def __init__(self,
@@ -42,7 +42,8 @@ class Preprocessing:
             The input Spark DataFrame containing event data.
         season : str | None, optional
             Season identifier to filter the data. If provided, the DataFrame is filtered
-            to include only events from this season (default is SEASON).
+            to include only events from this season (default is SEASON='2015/2016')
+            if you want it to include all seasons set season to None.
         events : list[str], optional
             List of event column names to retain from the DataFrame (default is EVENTS).
         DUMMIES_dict : dict[str], optional

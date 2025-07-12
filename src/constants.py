@@ -1,7 +1,7 @@
 """
 constants.py
 
-Defines constants used across notebooks.
+Defines constants used.
 
 Author: Anis Guechtouli
 """
@@ -41,10 +41,15 @@ EVENT_COLUMNS_SELECT = ['50_50', 'ball_receipt_outcome', 'ball_recovery_recovery
 # === Data Preprocessing ===
 SEASON = '2015/2016'
 
+GOAL_X = 120
+
+GOAL_Y1 = 36
+
+GOAL_Y2 = 44
+
 EVENTS = [
     'id', 'match_id', 'minute', 'second', 'type', 'period', 'location', 'team', 'player_id','player', 'position', # Event info
-    'play_pattern','shot_body_part','shot_technique','shot_type', # Shot info
-    'shot_freeze_frame', # Complicated info
+    'play_pattern','shot_body_part','shot_technique','shot_type', 'shot_freeze_frame', # Shot info
     'under_pressure','shot_aerial_won','shot_first_time','shot_one_on_one',
     'shot_open_goal', 'shot_follows_dribble', # Boolean
     'shot_statsbomb_xg','shot_outcome',# Target
