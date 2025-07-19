@@ -81,7 +81,7 @@ class Preprocessing:
         - If `full_pp` is True, the full preprocessing pipeline (`preprocess()`) is executed.
         - If `keep_shot_frame` is True, the processed shot frame data is stored in `self.shot_frame` and can be accessed later.
         - If `persist` is True, the processed DataFrame is persisted using `pyspark.StorageLevel.MEMORY_AND_DISK`. 
-        The `foreach(lambda row: None)` call forces materialization of the cache.
+        The `self.df.count()` call forces materialization of the cache.
         - The expected columns in the input DataFrame are specified in the constants file (`xG_constants.py`), in the `EVENTS` list.
 
         """
@@ -694,7 +694,9 @@ class Preprocessing:
 
         if self.persist:
             self.df = self.df.persist(pyspark.StorageLevel.MEMORY_AND_DISK)
-            self.df.foreach(lambda row: None)
+            # force materialization
+            self.df.count()
+
 
     def data_split(self,
                    train_size : float = 0.8,

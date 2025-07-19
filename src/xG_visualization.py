@@ -207,12 +207,10 @@ class Visualization:
                           target : str = 'goal'):
         
         """
-        Generate side-by-side heatmaps comparing the spatial distribution of all shots and goals.
+        Generate a heatmap showing the spatial distribution of goals on the pitch.
 
         This method converts the relevant columns from the Spark DataFrame to a pandas DataFrame and uses
-        mplsoccer's VerticalPitch to create two heatmaps:
-        - One heatmap displays the distribution of all shot events.
-        - The other heatmap shows the distribution of goals (where the target column equals 1).
+        mplsoccer's VerticalPitch to create a heatmap displaying the distribution of goals (where the target column equals 1).
 
         Parameters
         ----------
@@ -226,7 +224,7 @@ class Visualization:
         Returns
         -------
         None
-            The method displays the heatmaps and does not return any value.
+            The method displays the heatmap and does not return any value.
         """
 
         df = self.df.select(x, y, target).toPandas()
@@ -234,39 +232,24 @@ class Visualization:
                               half=True,
                               pitch_type='statsbomb',
                               line_zorder=2)
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 5))
+        fig, ax = plt.subplots(1, 1, figsize=(12, 8))
 
-        pitch.draw(ax=ax1)
-        pitch.draw(ax=ax2)
+        pitch.draw(ax=ax)
 
-        bin_statistic_shots = pitch.bin_statistic(df[x],
-                                                  df[y],
-                                                  bins=50)
         bin_statistic_goals = pitch.bin_statistic(df[df[target] == 1][x],
                                                   df[df[target] == 1][y],
                                                   bins=50)
 
-        pcm1 = pitch.heatmap(bin_statistic_shots,
-                             ax=ax1,
-                             cmap='Reds',
-                             edgecolor='white',
-                             linewidth=0.01)
-        pcm2 = pitch.heatmap(bin_statistic_goals,
-                             ax=ax2,
-                             cmap='Reds',
-                             edgecolor='white',
-                             linewidth=0.01)
+        pcm = pitch.heatmap(bin_statistic_goals,
+                            ax=ax,
+                            cmap='Reds',
+                            edgecolor='white',
+                            linewidth=0.01)
 
-        ax_cbar1 = fig.add_axes([0.46, 0.09, 0.02, 0.8])
-        plt.colorbar(pcm1, cax=ax_cbar1)
+        ax_cbar = fig.add_axes([0.92, 0.1, 0.03, 0.8])
+        plt.colorbar(pcm, cax=ax_cbar)
 
-        ax_cbar2 = fig.add_axes([0.88, 0.09, 0.02, 0.8])
-        plt.colorbar(pcm2, cax=ax_cbar2)
-
-        ax1.set_title("Shots Heatmap")
-        ax2.set_title("Goals Heatmap")
-        
-        fig.suptitle("Comparison of Shots and Goals Heatmaps", fontsize=16)
+        ax.set_title("Goals Heatmap", fontsize=16)
         plt.show()
 
     def shot_distribution(self,
@@ -509,25 +492,25 @@ class Visualization:
                     t : str = 'player'):
         
         """
-        Generate an interactive scatter plot comparing goals and xG for players.
+        Generate an interactive scatter plot comparing goals and xG for players or teams.
 
-        This method aggregates shot event data by player and team from the underlying Spark DataFrame,
-        summing goals and xG values. It filters out players whose cumulative goals or xG do not exceed the
+        This method aggregates shot event data by player/team from the underlying Spark DataFrame,
+        summing goals and xG values. It filters out entities whose cumulative goals or xG do not exceed the
         specified minimum thresholds (min_goal and min_xg) and computes the difference between goals and xG ('G-xG').
-        Players are then classified as 'Underperformer' if the 'G-xG' value is negative and 'Overperformer' otherwise.
+        Entities are then classified as 'Underperformer' if the 'G-xG' value is negative and 'Overperformer' otherwise.
         The method creates an interactive scatter plot using Plotly Express, plotting goals on the x-axis and xG on
-        the y-axis, with points colored by the performance classification. Hover data displays the player's name.
+        the y-axis, with points colored by the performance classification.
 
         Parameters
         ----------
         xg_column : str, optional
-            The column name for xG values (default is 'shot_statsbomb_xg').
+            The column name for xG values (default is 'xG').
         goal_column : str, optional
             The column name for goal outcomes (default is 'goal').
         min_goal : int, optional
-            The minimum number of goals required for a player to be included in the plot (default is 1).
+            The minimum number of goals required for inclusion in the plot (default is 1).
         min_xg : float, optional
-            The minimum cumulative xG required for a player to be included in the plot (default is 1).
+            The minimum cumulative xG required for inclusion in the plot (default is 1).
         t : str, optional
             Specifies the type of aggregation for the scatter plot: 'player' to aggregate by players 
             or 'team' to aggregate by clubs (default is 'player').
@@ -584,29 +567,31 @@ class Visualization:
         
     def xG_timeline(self,
                     match_id : int | None = None,
-                    columns : list[str] = CUMULATIVE_XG_COLUMNS):
+                    columns : list[str] = CUMULATIVE_XG_COLUMNS,
+                    xg_column : str = 'shot_statsbomb_xg'):
         
         """
-        Plot cumulative xG timelines for a given match.
+        Plot cumulative xG timeline for a given match.
 
-        This method filters the shot event data for the specified match_id and computes cumulative sums for both
-        Statsbomb xG and predicted xG using a window function partitioned by match and team, ordered by minute and second.
+        This method filters the shot event data for the specified match_id and computes cumulative sums for
+        the specified xG column using a window function partitioned by match and team, ordered by minute and second.
         The cumulative values are merged with a complete timeline of minutes and seconds to fill in any gaps via forward
-        filling. For each team, the method plots two subplots: one for the cumulative Statsbomb xG and another for the
-        cumulative predicted xG, highlighting moments when goals occurred. A vertical line at minute 45 is added to both
-        plots to denote halftime.
+        filling. For each team, the method plots the cumulative xG timeline, highlighting moments when goals occurred.
+        A vertical line at minute 45 is added to denote halftime.
 
         Parameters
         ----------
-        match_id : int
-            The unique identifier for the match to be visualized.
+        match_id : int or None, optional
+            The unique identifier for the match to be visualized. If None, a random match is selected.
         columns : list[str], optional
             A list of column names used in the timeline visualization, defaulting to CUMULATIVE_XG_COLUMNS.
+        xg_column : str, optional
+            The xG column to use for the cumulative timeline (default is 'shot_statsbomb_xg').
 
         Returns
         -------
         None
-            This method displays the cumulative xG timeline plots and does not return any value.
+            This method displays the cumulative xG timeline plot and does not return any value.
         """
         if match_id is not None:
             df = self.df.filter(F.col('match_id') == match_id)
@@ -621,10 +606,8 @@ class Visualization:
                             .rowsBetween(Window.unboundedPreceding,
                                          Window.currentRow)
 
-        df = df.withColumn('sb_CxG',
-                           F.sum('shot_statsbomb_xg').over(window_spec)) \
-               .withColumn('CxG',
-                           F.sum('xG').over(window_spec))
+        df = df.withColumn('CxG',
+                           F.sum(xg_column).over(window_spec))
 
         df_p = df.select(columns).orderBy('minute', 'second').toPandas()
 
@@ -637,11 +620,9 @@ class Visualization:
 
         ft = pd.DataFrame([(m, s) for m in mins_range for s in sec_range], columns=['minute', 'second'])
 
-        max_sb = max_cxg = 1
+        max_cxg = 1
 
-        fig, (ax1, ax2) = plt.subplots(ncols=2,
-                                       nrows=1,
-                                       figsize=(14, 7))
+        fig, ax = plt.subplots(figsize=(14, 7))
 
         for team in teams:
             df_team = df_p[df_p['team'] == team]
@@ -650,45 +631,31 @@ class Visualization:
                                on=('minute', 'second'),
                                how='left')
 
-            df_team['sb_CxG'] = df_team['sb_CxG'].ffill().fillna(0)
             df_team['CxG'] = df_team['CxG'].ffill().fillna(0)
             df_team['goal'] = df_team['goal'].fillna(0).astype(int)
             
             df_team['time'] = df_team['minute'] + round(df_team['second'] / 60, 2)
             
-            max_sb = max(max_sb, df_team['sb_CxG'].max())
             max_cxg = max(max_cxg, df_team['CxG'].max())
             
-            ax1.plot(df_team['time'],
-                     df_team['sb_CxG'],
-                     label=team)
-            ax1.scatter(df_team[df_team['goal'] == 1]['time'],
-                        df_team[df_team['goal'] == 1]['sb_CxG'])
-            
-            ax2.plot(df_team['time'],
-                     df_team['CxG'],
-                     label=team)
-            ax2.scatter(df_team[df_team['goal'] == 1]['time'],
-                        df_team[df_team['goal'] == 1]['CxG'])
+            ax.plot(df_team['time'],
+                    df_team['CxG'],
+                    label=team)
+            ax.scatter(df_team[df_team['goal'] == 1]['time'],
+                       df_team[df_team['goal'] == 1]['CxG'])
 
-        max_y = max(max_sb, max_cxg)
+        ax.axvline(x=45,
+                   color='black',
+                   linestyle='--')
+        ax.set_xticks([15, 30, 45, 60, 75, 90])
 
-        for ax in [ax1, ax2]:
-            ax.axvline(x=45,
-                       color='black',
-                       linestyle='--')
-            ax.set_xticks([15, 30, 45, 60, 75, 90])
+        ax.set_xlim(0, i - 1)
+        ax.set_ylim(0, max_cxg + 0.3)
 
-            ax.set_xlim(0, i - 1)
-            ax.set_ylim(0, max_y + 0.3)
-
-            ax.legend(loc='upper left')
-            ax.set_xlabel('Minutes')
-
-        ax1.set_ylabel('statsbomb xG')
-        ax1.set_title('Statsbomb xG Cumulative Timeline')
-        ax2.set_ylabel('xG')
-        ax2.set_title('Predicted xG Cumulative Timeline')
+        ax.legend(loc='upper left')
+        ax.set_xlabel('Minutes')
+        ax.set_ylabel('Cumulative xG')
+        ax.set_title('Cumulative xG Timeline')
 
         plt.tight_layout()
         plt.show()
