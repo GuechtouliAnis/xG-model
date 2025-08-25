@@ -8,7 +8,12 @@ xG_Project/
 ├── requirements.txt
 ├── LICENSE
 ├── .gitignore
-├── app.py
+├── 1_importing_data.ipynb
+├── 2_splitting_data.ipynb
+├── 3_preprocessing.ipynb
+├── 4_exploratory_data_analysis.ipynb
+├── 5_model_training.ipynb
+├── selected_features.md
 │
 ├── data/
 │   ├── preprocessed/
@@ -20,22 +25,10 @@ xG_Project/
 │   ├── constants.py
 │   ├── get_data.py
 │   ├── xG_constants.py
-│   ├── xG_preprocessing.py
-│   ├── xG_models.py
 │   ├── xG_evaluation.py
+│   ├── xG_models.py
+│   ├── xG_preprocessing.py
 │   └── xG_visualization.py
-│
-├── notebooks/
-│   ├── 1_importing_data.ipynb
-│   ├── 2_splitting_data.ipynb
-│   ├── 3_preprocessing.ipynb
-│   ├── 4_exploratory_data_analysis.ipynb
-│   └── selected_features.md
-│
-├── outputs/
-│   ├── figures/
-│   ├── reports/
-│   └── exports/
 │
 └── docs/
     ├── Open Data 360 Frames v1.0.0.pdf
