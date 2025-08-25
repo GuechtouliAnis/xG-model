@@ -6,6 +6,11 @@ __pycache__
 *.db
 *.xlsx
 0-notes
-data
 venv
 artifacts
+
+data/*
+
+!data/split_data/
+!data/split_data/events/
+!data/split_data/events/Europe - Champions League.csv
